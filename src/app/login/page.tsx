@@ -23,7 +23,7 @@ export default function LoginPage() {
       setError("Email ou senha inválidos");
       setLoading(false);
     } else {
-      router.push("/campanhas");
+      router.push("/dashboard");
       router.refresh();
     }
   }
@@ -32,8 +32,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">🎯 Buscador Geek</h1>
-          <p className="text-gray-400 mt-2">Painel Admin</p>
+          <h1 className="text-3xl font-bold text-white">💰 Financeiro</h1>
+          <p className="text-gray-400 mt-2">Controle de fluxo</p>
         </div>
 
         <form
