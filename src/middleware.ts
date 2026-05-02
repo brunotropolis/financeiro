@@ -32,7 +32,8 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith("/login");
+  const PUBLIC_AUTH_PAGES = ["/login", "/esqueci-senha", "/redefinir-senha"];
+  const isAuthPage = PUBLIC_AUTH_PAGES.some((p) => pathname.startsWith(p));
   const isPublicPath = pathname.startsWith("/api/") || isAuthPage;
 
   if (!user && !isPublicPath) {
@@ -41,7 +42,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPage) {
+  // Logged-in user on /login → home. /esqueci-senha e /redefinir-senha continuam acessíveis
+  // (usuário pode estar logado mas querendo trocar senha).
+  if (user && pathname.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
