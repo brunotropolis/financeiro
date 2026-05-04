@@ -27,9 +27,20 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Wrap em try/catch porque Supabase SSR pode lançar
+  // "TypeError: Cannot create property 'user' on string 'invalid'"
+  // quando o cookie de sessão estiver corrompido. Trata como deslogado.
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    console.warn("[middleware] auth.getUser falhou, tratando como deslogado:", err);
+    // Limpa cookies corrompidos pra forçar relogin limpo
+    supabaseResponse.cookies.getAll().forEach((c) => {
+      if (c.name.startsWith("sb-")) supabaseResponse.cookies.delete(c.name);
+    });
+  }
 
   const { pathname } = request.nextUrl;
   const PUBLIC_AUTH_PAGES = ["/login", "/esqueci-senha", "/redefinir-senha"];
