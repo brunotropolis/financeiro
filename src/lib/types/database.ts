@@ -72,6 +72,99 @@ export type FrequenciaRecorrencia =
 export type StatusFatura = "aberta" | "fechada" | "paga" | "parcial" | "atrasada";
 export type RoleUsuario = "admin" | "operator" | "viewer";
 
+// ─── Interfaces de tabelas (alinhadas com schema.sql) ────────────────────────
+export interface Entidade {
+  id: string;
+  nome: string;
+  tipo: TipoEntidade;
+  cnpj_cpf: string | null;
+  razao_social: string | null;
+  cor_hex: string | null;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface ContaBancaria {
+  id: string;
+  entidade_id: string;
+  nome: string;
+  banco: string;
+  tipo: TipoConta;
+  agencia: string | null;
+  numero: string | null;
+  saldo_atual: number;
+  saldo_atualizado_em: string | null;
+  cor_hex: string | null;
+  conta_principal: boolean;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface CartaoCredito {
+  id: string;
+  entidade_id: string;
+  nome: string;
+  bandeira: BandeiraCartao;
+  ultimos_4_digitos: string | null;
+  limite_total: number | null;
+  limite_disponivel: number | null;
+  dia_fechamento: number;
+  dia_vencimento: number;
+  conta_pagamento_id: string | null;
+  cor_hex: string | null;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface Categoria {
+  id: string;
+  nome: string;
+  tipo: TipoCategoria;
+  categoria_pai_id: string | null;
+  cor_hex: string | null;
+  icone: string | null;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface Fornecedor {
+  id: string;
+  nome: string;
+  nome_normalizado: string;
+  cnpj: string | null;
+  categoria_padrao_id: string | null;
+  entidade_padrao_id: string | null;
+  forma_pagamento_padrao: FormaPagamento | null;
+  cartao_padrao_id: string | null;
+  conta_padrao_id: string | null;
+  total_transacoes: number;
+  valor_medio: number | null;
+  ultimo_pagamento_em: string | null;
+  aliases: Json;
+  ativo: boolean;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface Profile {
+  id: string;
+  nome: string;
+  email: string;
+  telefone_whatsapp: string | null;
+  role: RoleUsuario;
+  ativo: boolean;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 /** Schema placeholder — substituir por tipos gerados após aplicar schema.sql */
 export type Database = {
   public: {
