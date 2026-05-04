@@ -154,6 +154,90 @@ export interface Fornecedor {
   atualizado_em: string;
 }
 
+export interface ReceitaBruta {
+  id: string;
+  origem: OrigemReceita;
+  transaction_id_externo: string | null;
+  entidade_id: string;
+  produto_nome: string | null;
+  produto_id_externo: string | null;
+  cliente_nome: string | null;
+  cliente_email: string | null;
+  cliente_telefone: string | null;
+  valor_bruto: number;
+  taxas: number;
+  valor_liquido: number;
+  metodo_pagamento: string | null;
+  parcelas: number | null;
+  data_venda: string;
+  data_prevista_pagamento: string | null;
+  data_recebimento: string | null;
+  status: StatusReceita;
+  movimentacao_id: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  cupom: string | null;
+  notas: string | null;
+  bruto_webhook: Json;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface Transacao {
+  id: string;
+  tipo: TipoTransacao;
+  descricao: string;
+  valor: number;
+  data_competencia: string;
+  data_pagamento: string | null;
+  entidade_id: string;
+  categoria_id: string | null;
+  fornecedor_id: string | null;
+  forma_pagamento: FormaPagamento | null;
+  cartao_id: string | null;
+  conta_id: string | null;
+  parcelado: boolean;
+  parcela_atual: number | null;
+  parcela_total: number | null;
+  valor_parcela: number | null;
+  transacao_pai_id: string | null;
+  recorrencia_id: string | null;
+  fatura_id: string | null;
+  status: StatusTransacao;
+  comprovante_url: string | null;
+  notas: string | null;
+  origem: OrigemTransacao;
+  bruto_ia: Json;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface Recorrencia {
+  id: string;
+  nome: string;
+  tipo: TipoTransacao;
+  valor_padrao: number;
+  dia_vencimento: number;
+  frequencia: FrequenciaRecorrencia;
+  entidade_id: string;
+  categoria_id: string | null;
+  fornecedor_id: string | null;
+  forma_pagamento: FormaPagamento | null;
+  cartao_id: string | null;
+  conta_id: string | null;
+  data_inicio: string;
+  data_fim: string | null;
+  proxima_data: string | null;
+  ultima_geracao_em: string | null;
+  notas: string | null;
+  ativo: boolean;
+  criado_em: string;
+  atualizado_em: string;
+}
+
 export interface Profile {
   id: string;
   nome: string;
