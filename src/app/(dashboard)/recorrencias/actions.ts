@@ -10,6 +10,8 @@ export type RecorrenciaInput = {
   tipo: TipoTransacao;
   valor_padrao: number;
   dia_vencimento: number;
+  dia_semana?: number | null;
+  pode_pular?: boolean;
   frequencia: FrequenciaRecorrencia;
   entidade_id: string;
   categoria_id?: string | null;
@@ -39,6 +41,8 @@ export async function salvarRecorrencia(input: RecorrenciaInput) {
     tipo: input.tipo,
     valor_padrao: input.valor_padrao,
     dia_vencimento: input.dia_vencimento,
+    dia_semana: input.dia_semana ?? null,
+    pode_pular: input.pode_pular ?? false,
     frequencia: input.frequencia,
     entidade_id: input.entidade_id,
     categoria_id: input.categoria_id || null,
@@ -81,4 +85,17 @@ export async function deletarRecorrencia(id: string) {
   if (error) return { error: error.message };
   revalidatePath("/recorrencias");
   return { ok: true as const };
+}
+
+/**
+ * Força regeneração das transações previstas dos próximos N meses.
+ * Idempotente: não duplica.
+ */
+export async function rematerializarTodas(meses = 6) {
+  const db = await dbServer();
+  const { data, error } = await db.rpc("materializar_todas_recorrencias", { meses });
+  if (error) return { error: error.message };
+  revalidatePath("/recorrencias");
+  revalidatePath("/projecao");
+  return { ok: true as const, criadas: data as number };
 }

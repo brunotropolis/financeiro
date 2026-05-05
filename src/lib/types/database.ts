@@ -64,6 +64,8 @@ export type StatusReceita =
   | "atrasado";
 export type TipoMovimentacao = "entrada" | "saida" | "transferencia";
 export type FrequenciaRecorrencia =
+  | "semanal"
+  | "quinzenal"
   | "mensal"
   | "bimestral"
   | "trimestral"
@@ -233,6 +235,8 @@ export interface Recorrencia {
   proxima_data: string | null;
   ultima_geracao_em: string | null;
   notas: string | null;
+  dia_semana: number | null;
+  pode_pular: boolean;
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;

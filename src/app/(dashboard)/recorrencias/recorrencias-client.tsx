@@ -25,11 +25,23 @@ type CartLite = Pick<CartaoCredito, "id" | "nome" | "entidade_id" | "ativo">;
 type ContaLite = Pick<ContaBancaria, "id" | "nome" | "banco" | "entidade_id" | "ativo">;
 
 const FREQUENCIAS: { value: FrequenciaRecorrencia; label: string }[] = [
+  { value: "semanal", label: "Semanal" },
+  { value: "quinzenal", label: "Quinzenal" },
   { value: "mensal", label: "Mensal" },
   { value: "bimestral", label: "Bimestral" },
   { value: "trimestral", label: "Trimestral" },
   { value: "semestral", label: "Semestral" },
   { value: "anual", label: "Anual" },
+];
+
+const DIAS_SEMANA = [
+  { value: 0, label: "Domingo" },
+  { value: 1, label: "Segunda" },
+  { value: 2, label: "Terça" },
+  { value: 3, label: "Quarta" },
+  { value: 4, label: "Quinta" },
+  { value: 5, label: "Sexta" },
+  { value: 6, label: "Sábado" },
 ];
 
 const FORMAS: { value: FormaPagamento; label: string }[] = [
@@ -260,6 +272,8 @@ function RecorrenciaFormDialog({
   const [tipo, setTipo] = useState<TipoTransacao>("despesa");
   const [valor, setValor] = useState("0");
   const [diaVenc, setDiaVenc] = useState("5");
+  const [diaSemana, setDiaSemana] = useState("5"); // sexta
+  const [podePular, setPodePular] = useState(false);
   const [freq, setFreq] = useState<FrequenciaRecorrencia>("mensal");
   const [entidadeId, setEntidadeId] = useState("");
   const [catId, setCatId] = useState("");
@@ -277,6 +291,8 @@ function RecorrenciaFormDialog({
     setTipo((recorrencia?.tipo as TipoTransacao) ?? "despesa");
     setValor(recorrencia ? String(recorrencia.valor_padrao) : "0");
     setDiaVenc(String(recorrencia?.dia_vencimento ?? 5));
+    setDiaSemana(String(recorrencia?.dia_semana ?? 5));
+    setPodePular(recorrencia?.pode_pular ?? false);
     setFreq((recorrencia?.frequencia as FrequenciaRecorrencia) ?? "mensal");
     setEntidadeId(recorrencia?.entidade_id ?? entidades[0]?.id ?? "");
     setCatId(recorrencia?.categoria_id ?? "");
@@ -310,12 +326,15 @@ function RecorrenciaFormDialog({
       return setErro("Selecione a conta.");
     }
 
+    const isSemanal = freq === "semanal" || freq === "quinzenal";
     const input: RecorrenciaInput = {
       id: recorrencia?.id,
       nome,
       tipo,
       valor_padrao: v,
       dia_vencimento: dV,
+      dia_semana: isSemanal ? parseInt(diaSemana) : null,
+      pode_pular: podePular,
       frequencia: freq,
       entidade_id: entidadeId,
       categoria_id: catId || null,
@@ -366,10 +385,6 @@ function RecorrenciaFormDialog({
               <Input id="valor" type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="dia">Vence dia</Label>
-              <Input id="dia" type="number" min={1} max={31} value={diaVenc} onChange={(e) => setDiaVenc(e.target.value)} required className="mt-1.5" />
-            </div>
-            <div>
               <Label>Frequência</Label>
               <Select value={freq} onValueChange={(v) => setFreq(v as FrequenciaRecorrencia)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
@@ -379,6 +394,37 @@ function RecorrenciaFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            {(freq === "semanal" || freq === "quinzenal") ? (
+              <div>
+                <Label>Dia da semana</Label>
+                <Select value={diaSemana} onValueChange={setDiaSemana}>
+                  <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DIAS_SEMANA.map((d) => (
+                      <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="dia">Vence dia</Label>
+                <Input id="dia" type="number" min={1} max={31} value={diaVenc} onChange={(e) => setDiaVenc(e.target.value)} required className="mt-1.5" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-950 border border-gray-800">
+            <Switch checked={podePular} onCheckedChange={setPodePular} />
+            <div>
+              <Label className="cursor-pointer" onClick={() => setPodePular(!podePular)}>
+                Pode pular ocorrência
+              </Label>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Marca quando o pagamento pode não ocorrer (ex: diarista que falta).
+                Não dispara alerta de atraso se não bater com extrato.
+              </p>
             </div>
           </div>
 

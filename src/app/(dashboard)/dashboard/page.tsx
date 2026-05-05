@@ -1,12 +1,12 @@
 import { dbServer } from "@/lib/supabase/db";
-import { TrendingUp, TrendingDown, Wallet, ScrollText } from "lucide-react";
-import { formatBRL } from "@/lib/formatters";
+import { TrendingUp, TrendingDown, Wallet, ScrollText, AlertCircle } from "lucide-react";
+import { formatBRL, formatDate } from "@/lib/formatters";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 type ContaSlim = { id: string; nome: string; saldo_atual: number; banco: string; entidade_id: string; cor_hex: string | null };
-type TxSlim = { id: string; tipo: "despesa" | "receita"; valor: number; data_competencia: string; status: string; cartao_id: string | null };
+type TxSlim = { id: string; tipo: "despesa" | "receita"; valor: number; data_competencia: string; status: string; cartao_id: string | null; descricao: string };
 type RecSlim = { id: string; valor_liquido: number; data_venda: string; status: string };
 type EntSlim = { id: string; nome: string; tipo: "PF" | "PJ"; cor_hex: string | null };
 
@@ -19,21 +19,30 @@ export default async function DashboardPage() {
   inicioMes.setHours(0, 0, 0, 0);
   const inicioMesISO = inicioMes.toISOString().slice(0, 10);
 
-  const [contasRes, entRes, txRes, recRes] = await Promise.all([
+  // Roda detecção de atrasos antes de buscar
+  await db.rpc("detectar_atrasos");
+
+  const [contasRes, entRes, txRes, recRes, atrasadasRes] = await Promise.all([
     db.from("contas_bancarias").select("id,nome,saldo_atual,banco,entidade_id,cor_hex").eq("ativo", true).order("ordem"),
     db.from("entidades").select("id,nome,tipo,cor_hex").eq("ativo", true).order("ordem"),
     db.from("transacoes")
-      .select("id,tipo,valor,data_competencia,status,cartao_id")
+      .select("id,tipo,valor,data_competencia,status,cartao_id,descricao")
       .gte("data_competencia", inicioMesISO),
     db.from("receitas_brutas")
       .select("id,valor_liquido,data_venda,status")
       .gte("data_venda", inicioMesISO),
+    db.from("transacoes")
+      .select("id,descricao,valor,data_competencia")
+      .eq("status", "atrasada")
+      .order("data_competencia")
+      .limit(20),
   ]);
 
   const contas = (contasRes.data ?? []) as ContaSlim[];
   const entidades = (entRes.data ?? []) as EntSlim[];
   const transacoes = (txRes.data ?? []) as TxSlim[];
   const receitas = (recRes.data ?? []) as RecSlim[];
+  const atrasadas = (atrasadasRes.data ?? []) as Array<{ id: string; descricao: string; valor: number; data_competencia: string }>;
 
   const saldoTotal = contas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
@@ -76,6 +85,40 @@ export default async function DashboardPage() {
           color={totalReceitasMes - despesasMes >= 0 ? "text-emerald-400" : "text-rose-400"}
         />
       </div>
+
+      {atrasadas.length > 0 && (
+        <div className="bg-rose-950/30 border border-rose-900 rounded-xl p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-5 h-5 text-rose-400" />
+            <h2 className="text-sm font-semibold text-rose-200">
+              {atrasadas.length} pagamento{atrasadas.length === 1 ? "" : "s"} atrasado{atrasadas.length === 1 ? "" : "s"}
+            </h2>
+          </div>
+          <div className="space-y-1.5">
+            {atrasadas.slice(0, 5).map((a) => {
+              const dias = Math.floor((Date.now() - new Date(a.data_competencia + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24));
+              return (
+                <Link
+                  key={a.id}
+                  href="/transacoes"
+                  className="flex items-center justify-between py-1.5 px-3 rounded hover:bg-rose-900/30"
+                >
+                  <div>
+                    <span className="text-sm text-white">{a.descricao}</span>
+                    <span className="text-xs text-rose-400 ml-2">{dias}d atraso · venceu {formatDate(a.data_competencia)}</span>
+                  </div>
+                  <span className="font-mono text-sm text-rose-300">{formatBRL(a.valor)}</span>
+                </Link>
+              );
+            })}
+            {atrasadas.length > 5 && (
+              <Link href="/transacoes" className="block text-xs text-rose-400 hover:text-rose-300 mt-2 px-3">
+                Ver todas ({atrasadas.length}) →
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
