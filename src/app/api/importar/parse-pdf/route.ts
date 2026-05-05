@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 8000,
+      max_tokens: 16000,
       messages: [
         {
           role: "user",
@@ -109,16 +109,91 @@ export async function POST(req: NextRequest) {
       .map((c) => c.text)
       .join("");
 
-    // Extrai JSON da resposta (Claude às vezes prefixa com markdown)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: "Não consegui extrair JSON da resposta", raw: text }, { status: 500 });
+    const stopReason = response.stop_reason;
+    const truncated = stopReason === "max_tokens";
+
+    const parsed = parseJSONResiliente(text);
+    if (!parsed) {
+      return NextResponse.json({
+        error: truncated
+          ? "Resposta da IA foi truncada (extrato muito grande). Divida o PDF em duas partes."
+          : "Não consegui extrair JSON da resposta",
+        truncated,
+        rawPreview: text.slice(0, 500),
+      }, { status: 500 });
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return NextResponse.json({ ok: true, ...parsed });
+    return NextResponse.json({
+      ok: true,
+      ...parsed,
+      _meta: { truncated, transacoes_count: parsed.transacoes?.length ?? 0 }
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro desconhecido";
     return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+/**
+ * Tenta parsear JSON. Se vier truncado (max_tokens), tenta recuperar
+ * fechando o array de transacoes no último elemento válido.
+ */
+function parseJSONResiliente(text: string): {
+  banco?: string;
+  conta_identificada?: object;
+  saldo_anterior?: number;
+  saldo_final?: number;
+  transacoes?: object[];
+} | null {
+  // Remove markdown wrapping ```json ... ```
+  const cleaned = text.replace(/^[\s\S]*?(\{[\s\S]*)/, "$1").replace(/```[\s\S]*$/, "");
+  const start = cleaned.indexOf("{");
+  if (start < 0) return null;
+  const candidate = cleaned.slice(start);
+
+  // Tentativa 1: parse direto
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // continua
+  }
+
+  // Tentativa 2: localizar "transacoes": [ ... ] e pegar até último } completo
+  const arrMatch = candidate.match(/"transacoes"\s*:\s*\[/);
+  if (!arrMatch) return null;
+  const arrStart = arrMatch.index! + arrMatch[0].length;
+
+  // Encontra último } seguido de } ou , que está bem-formado
+  let depth = 1; // já estamos dentro do [
+  let lastValidIdx = -1;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = arrStart; i < candidate.length; i++) {
+    const c = candidate[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (c === "\\") { escapeNext = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    if (c === "}") {
+      depth--;
+      // Se voltamos pra profundidade 1, é o fim de uma transação completa
+      if (depth === 1) lastValidIdx = i;
+      // Se profundidade 0 dentro do array, é fim do array — não acontece aqui
+    }
+  }
+
+  if (lastValidIdx < 0) return null;
+
+  // Reconstrói JSON: prefix + transacoes válidas + ]} fechando o objeto raiz
+  const prefix = candidate.slice(0, arrStart);
+  const transacoesValidas = candidate.slice(arrStart, lastValidIdx + 1);
+  const reconstruido = `${prefix}${transacoesValidas}]}`;
+
+  try {
+    return JSON.parse(reconstruido);
+  } catch {
+    return null;
   }
 }

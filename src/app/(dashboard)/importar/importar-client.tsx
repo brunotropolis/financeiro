@@ -79,6 +79,10 @@ export function ImportarClient({
         candidatos: matches[i],
       }));
 
+      if (data._meta?.truncated) {
+        setErro(`⚠️ Resposta da IA truncada — recuperei ${linhasInic.length} transações, mas pode ter mais. Se faltar, divida o PDF em 2 partes.`);
+      }
+
       setLinhas(linhasInic);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro");
