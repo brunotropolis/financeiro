@@ -29,6 +29,10 @@ const ORIGENS: { value: OrigemReceita; label: string }[] = [
   { value: "outro", label: "Outro" },
 ];
 
+/**
+ * Lista completa de status (DB suporta todos — Greenn webhook usa).
+ * Usado pra renderizar badge na listagem.
+ */
 const STATUS: { value: StatusReceita; label: string; cls: string }[] = [
   { value: "previsto", label: "Previsto", cls: "bg-blue-900/40 text-blue-300" },
   { value: "confirmado", label: "Confirmado", cls: "bg-blue-900/40 text-blue-300" },
@@ -40,6 +44,16 @@ const STATUS: { value: StatusReceita; label: string; cls: string }[] = [
   { value: "chargeback", label: "Chargeback", cls: "bg-rose-900/40 text-rose-300" },
   { value: "cancelado", label: "Cancelado", cls: "bg-gray-800 text-gray-400" },
   { value: "atrasado", label: "Atrasado", cls: "bg-rose-900/40 text-rose-300" },
+];
+
+/**
+ * Status simplificados pro form de cadastro manual (apenas 3 opções).
+ * Greenn webhook continua usando o set completo no DB.
+ */
+const STATUS_MANUAIS: { value: StatusReceita; label: string }[] = [
+  { value: "previsto", label: "Previsto" },
+  { value: "confirmado", label: "Confirmado" },
+  { value: "atrasado", label: "Atrasado" },
 ];
 
 export function ReceitasClient({
@@ -120,10 +134,11 @@ export function ReceitasClient({
           <table className="w-full">
             <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
               <tr>
-                <th className="text-left px-4 py-3">Data</th>
+                <th className="text-left px-4 py-3">Previsão</th>
+                <th className="text-left px-4 py-3">Recebimento</th>
                 <th className="text-left px-4 py-3">Produto/Cliente</th>
                 <th className="text-left px-4 py-3">Origem</th>
-                <th className="text-right px-4 py-3">Bruto</th>
+                <th className="text-right px-4 py-3">Valor</th>
                 <th className="text-right px-4 py-3">Líquido</th>
                 <th className="text-center px-4 py-3">Status</th>
                 <th className="text-right px-4 py-3 w-24">Ações</th>
@@ -189,7 +204,8 @@ function Row({ rec, entidade, onEdit }: { rec: ReceitaBruta; entidade?: EntLite;
 
   return (
     <tr className="hover:bg-gray-800/30">
-      <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">{formatDate(rec.data_venda)}</td>
+      <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">{rec.data_prevista_pagamento ? formatDate(rec.data_prevista_pagamento) : <span className="text-gray-600">—</span>}</td>
+      <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">{rec.data_recebimento ? formatDate(rec.data_recebimento) : <span className="text-gray-600">—</span>}</td>
       <td className="px-4 py-3">
         <div className="text-sm font-medium text-white">{rec.produto_nome ?? "—"}</div>
         <div className="text-xs text-gray-500">
@@ -241,11 +257,8 @@ function ReceitaFormDialog({
   const [origem, setOrigem] = useState<OrigemReceita>("publi");
   const [produto, setProduto] = useState("");
   const [cliente, setCliente] = useState("");
-  const [bruto, setBruto] = useState("0");
-  const [taxas, setTaxas] = useState("0");
-  const [metodo, setMetodo] = useState("");
-  const [parcelas, setParcelas] = useState("1");
-  const [dataVenda, setDataVenda] = useState(new Date().toISOString().slice(0, 10));
+  const [valor, setValor] = useState("0");
+  const [imposto, setImposto] = useState("0");
   const [dataPrev, setDataPrev] = useState("");
   const [dataReceb, setDataReceb] = useState("");
   const [status, setStatus] = useState<StatusReceita>("previsto");
@@ -257,11 +270,8 @@ function ReceitaFormDialog({
     setOrigem((receita?.origem as OrigemReceita) ?? "publi");
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
-    setBruto(receita ? String(receita.valor_bruto) : "0");
-    setTaxas(receita ? String(receita.taxas) : "0");
-    setMetodo(receita?.metodo_pagamento ?? "");
-    setParcelas(String(receita?.parcelas ?? 1));
-    setDataVenda(receita?.data_venda ?? new Date().toISOString().slice(0, 10));
+    setValor(receita ? String(receita.valor_bruto) : "0");
+    setImposto(receita ? String(receita.taxas) : "0");
     setDataPrev(receita?.data_prevista_pagamento ?? "");
     setDataReceb(receita?.data_recebimento ?? "");
     setStatus((receita?.status as StatusReceita) ?? "previsto");
@@ -270,12 +280,22 @@ function ReceitaFormDialog({
     setErro(null);
   }, [open, receita, entidades]);
 
+  // Auto-detecta status baseado em datas
+  useEffect(() => {
+    if (dataReceb) {
+      setStatus("confirmado");
+    } else if (dataPrev && dataPrev < new Date().toISOString().slice(0, 10)) {
+      // Se o status atual não foi mudado manualmente pelo usuário recente, sugere atrasado
+      setStatus((prev) => (prev === "previsto" || prev === "atrasado") ? "atrasado" : prev);
+    }
+  }, [dataReceb, dataPrev]);
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
-    const v = parseFloat(bruto.replace(",", "."));
-    const t = parseFloat(taxas.replace(",", ".")) || 0;
-    if (!v || v <= 0) return setErro("Valor bruto deve ser maior que zero.");
+    const v = parseFloat(valor.replace(",", "."));
+    const t = parseFloat(imposto.replace(",", ".")) || 0;
+    if (!v || v <= 0) return setErro("Valor deve ser maior que zero.");
     if (!entidadeId) return setErro("Selecione uma entidade.");
 
     const input: ReceitaInput = {
@@ -285,9 +305,10 @@ function ReceitaFormDialog({
       cliente_nome: cliente,
       valor_bruto: v,
       taxas: t,
-      metodo_pagamento: metodo,
-      parcelas: parseInt(parcelas) || 1,
-      data_venda: dataVenda,
+      metodo_pagamento: "PIX",
+      parcelas: 1,
+      // data_venda preenchida automaticamente: usa data_recebimento se houve, senão hoje
+      data_venda: dataReceb || receita?.data_venda || new Date().toISOString().slice(0, 10),
       data_prevista_pagamento: dataPrev || null,
       data_recebimento: dataReceb || null,
       status,
@@ -302,7 +323,9 @@ function ReceitaFormDialog({
     });
   }
 
-  const liquidoCalc = (parseFloat(bruto.replace(",", ".")) || 0) - (parseFloat(taxas.replace(",", ".")) || 0);
+  const valorNum = parseFloat(valor.replace(",", ".")) || 0;
+  const impostoNum = parseFloat(imposto.replace(",", ".")) || 0;
+  const liquidoCalc = valorNum - impostoNum;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -346,13 +369,13 @@ function ReceitaFormDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="bruto">Valor bruto (R$)</Label>
-              <Input id="bruto" type="number" step="0.01" value={bruto} onChange={(e) => setBruto(e.target.value)} required className="mt-1.5" />
+              <Label htmlFor="valor">Valor (R$)</Label>
+              <Input id="valor" type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required className="mt-1.5" />
             </div>
             <div>
-              <Label htmlFor="taxas">Taxas (R$)</Label>
-              <Input id="taxas" type="number" step="0.01" value={taxas} onChange={(e) => setTaxas(e.target.value)} className="mt-1.5" />
-              <p className="text-xs text-gray-500 mt-1">Plataforma, IR retido, etc.</p>
+              <Label htmlFor="imposto">Imposto (R$)</Label>
+              <Input id="imposto" type="number" step="0.01" value={imposto} onChange={(e) => setImposto(e.target.value)} className="mt-1.5" />
+              <p className="text-xs text-gray-500 mt-1">Opcional — IR retido na nota.</p>
             </div>
             <div>
               <Label>Líquido</Label>
@@ -364,36 +387,22 @@ function ReceitaFormDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="met">Método</Label>
-              <Input id="met" value={metodo} onChange={(e) => setMetodo(e.target.value)} placeholder="PIX, boleto, cartão..." className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="parc">Parcelas</Label>
-              <Input id="parc" type="number" min={1} value={parcelas} onChange={(e) => setParcelas(e.target.value)} className="mt-1.5" />
-            </div>
-            <div>
-              <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as StatusReceita)}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="dv">Data da venda/emissão</Label>
-              <Input id="dv" type="date" value={dataVenda} onChange={(e) => setDataVenda(e.target.value)} required className="mt-1.5" />
-            </div>
-            <div>
               <Label htmlFor="dp">Previsão de pagamento</Label>
               <Input id="dp" type="date" value={dataPrev} onChange={(e) => setDataPrev(e.target.value)} className="mt-1.5" />
             </div>
             <div>
               <Label htmlFor="dr">Data de recebimento</Label>
               <Input id="dr" type="date" value={dataReceb} onChange={(e) => setDataReceb(e.target.value)} className="mt-1.5" />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as StatusReceita)}>
+                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_MANUAIS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">Auto: vira "Confirmado" se preencher recebimento.</p>
             </div>
           </div>
 
