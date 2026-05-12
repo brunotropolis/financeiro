@@ -3,11 +3,16 @@
 Painel web pra gestão financeira pessoal (PF) + 3 PJs do Bruno. Substitui planilha + WhatsApp por sistema unificado com cartões, recorrências mensais, projeção de fluxo de caixa, sincronização Greenn/Meta e (futuramente) bot WhatsApp pra lançamento via foto de comprovante.
 
 ## URLs
-- **Produção (final):** https://financeiro.brunotropolis.com.br *(aguardando propagação NS — ~30min-2h após troca no registro.br)*
-- **Backup (provisório):** https://financeiro.buscadorgeek.com.br *(remover após brunotropolis.com.br ativar)*
-- **Repo:** https://github.com/brunotropolis/financeiro (público — necessário pro EasyPanel free clonar sem auth)
+- **Produção:** https://financeiro.brunotropolis.com.br ✅ ONLINE (SSL Let's Encrypt via Cloudflare)
+- **Backup:** https://financeiro.buscadorgeek.com.br ✅ ainda ativo (remover quando validar tudo)
+- **Repo:** https://github.com/brunotropolis/financeiro (público temporariamente — EasyPanel free clona sem auth)
 - **Pasta local:** `D:\CLAUDE\financeiro\`
 - **Hub Bruno:** https://projetos.brunotropolis.com.br (tem card linkando pra cá)
+
+## Login
+- **URL:** https://financeiro.brunotropolis.com.br/login
+- **Admins:** `contato@brunotropolis.com.br` e `day.dos.anjos.ramos@gmail.com`
+- **Senha provisória:** `Musha003` (trocar via Authentication → Users no Supabase)
 
 ## Stack
 - **Framework:** Next.js 15 (App Router, TypeScript, Tailwind, output: "standalone")
@@ -208,13 +213,14 @@ Via browser MCP (mais rápido que API):
 
 | Sprint | Status | Entrega |
 |---|---|---|
-| **0 — Setup** | ✅ | Repo, Supabase, schema, seed, scaffolding Next.js, deploy EasyPanel, DNS Cloudflare, login funcional, audit log |
-| **1 — Cadastros** | ⏳ | Forms reais de Entidades, Contas, Cartões, Categorias, Fornecedores, Recorrências (com snapshot mensal). Server Actions + RLS funcionando |
-| **2 — Operação** | ⬜ | Transações, Receitas (manual + integração Greenn), Faturas, Dashboard com gráficos, projeção 6 meses |
-| **3 — Importação** | ⬜ | CSV/OFX de extratos bancários, conciliação automática movimentações ↔ transações |
-| **4 — Bot WhatsApp** | ⬜ | Grupo privado Bruno + Day + bot. Foto de comprovante → Claude vision → JSON estruturado → match por fornecedor → confirmação. Aprendizado de fornecedor automatizado |
+| **0 — Setup** | ✅ | Repo, Supabase, schema, seed, scaffolding Next.js, deploy EasyPanel, DNS Cloudflare (brunotropolis.com.br migrado), login funcional, audit log, flow "esqueci senha" |
+| **1 — Cadastros** | ✅ | Forms reais de Entidades, Contas, Cartões, Categorias, Fornecedores + base UI shadcn-like (button, dialog, input, select, switch, color-picker) |
+| **2 — Operação** | ✅ | Transações (com parcelamento automático), Receitas (form simplificado: valor+imposto+3 status+2 datas), Recorrências, Faturas (agrupadas por mês de fechamento do cartão), Dashboard com dados reais |
+| **3 — Projeção + Importação** | ✅ | Recorrências semanais/quinzenais + dia_semana + pode_pular; Tela `/projecao` 6 meses; Tela `/importar` (PDF → Claude Haiku 4.5 → JSON → match automático ±R$2/3d); API webhook Greenn; Detecção de atrasos no dashboard |
+| **4 — Bot WhatsApp** | ⬜ | Grupo privado Bruno + Day + bot. Notificações de atraso. Foto de comprovante → Claude vision → JSON → match por fornecedor → confirmação. Aprendizado automatizado. **Aguardando:** número WhatsApp dedicado |
 | **5 — Afiliados** | ⬜ | Sincronização mensal Amazon/Shopee/ML afiliados (faturamento em aberto) |
 | **6 — Sync Meta + Usuários** | ⬜ | Gasto de tráfego Meta automático (categoria Anúncio), tela de gestão de usuários |
+| **7 — Materialização retroativa** | ⬜ | Função SQL pra gerar transações previstas dos últimos 90 dias (pra casar com extratos passados na importação) |
 
 ## Workflows n8n relevantes
 
@@ -246,14 +252,76 @@ curl -X POST "http://187.77.49.160:3000/api/trpc/services.app.deployService" \
 nslookup financeiro.brunotropolis.com.br meg.ns.cloudflare.com
 ```
 
-## Pendências da próxima sessão
+## Estado atual em produção (com data desta atualização)
 
-1. **Confirmar propagação NS** — testar `nslookup financeiro.brunotropolis.com.br 1.1.1.1` retornar IP CF
-2. **Confirmar SSL Let's Encrypt** ativou — `curl -I https://financeiro.brunotropolis.com.br/` retornar 200/302 sem erro de cert
-3. **Remover domínio `financeiro.buscadorgeek.com.br`** do EasyPanel (cleanup)
-4. **Tornar repo privado novamente?** — só funciona se autorizar EasyPanel GitHub App pro `brunotropolis/financeiro`. Por ora deixar público sem segredos.
-5. **Sprint 1 forms** — implementar CRUDs de cadastros usando Server Actions + Supabase RLS
-6. **Trocar senhas provisórias** — Bruno e Day devem trocar via Authentication → Users no Supabase
+**URL produção:** https://financeiro.brunotropolis.com.br ✅ Online com SSL Let's Encrypt
+**Senha dos admins:** `Musha003` (Bruno e Day — trocar via Authentication → Users)
+**Último commit em prod:** `5dcdd99` (form receitas simplificado + migration 002)
+
+### Telas funcionais
+| Rota | Status | Função |
+|---|---|---|
+| `/login` `/esqueci-senha` `/redefinir-senha` | ✅ | Auth flow completo |
+| `/dashboard` | ✅ | Cards saldo/receitas/despesas + alerta vermelho de atrasos + saldo por entidade + atalhos |
+| `/projecao` | ✅ | Visão semanal/mensal próximos 6 meses com saldo projetado |
+| `/transacoes` | ✅ | CRUD com parcelamento, filtros, marcar paga |
+| `/receitas` | ✅ | Form simplificado (valor + imposto + 3 status + 2 datas) |
+| `/recorrencias` | ✅ | Semanal/quinzenal/mensal/etc + dia_semana + pode_pular |
+| `/faturas` | ✅ | Agrupa transações de cartão por mês de fatura |
+| `/importar` | ✅ | Upload PDF → Claude Haiku → revisão → match automático |
+| `/entidades` `/contas` `/cartoes` `/categorias` `/fornecedores` | ✅ | CRUDs |
+
+### Migrations aplicadas
+1. `001_recorrencias_semanais.sql` — frequência semanal/quinzenal, funções materializar, view v_projecao, detectar_atrasos
+2. `002_fix_recursao_trigger.sql` — fix recursão infinita no trigger (stack depth limit exceeded)
+
+### Política permanente
+- **SEMPRE disparar deploy manual no EasyPanel após push** — auto-deploy não confiável
+- Tokens EasyPanel/Cloudflare têm TTL curto, refazer via browser quando expira
+- Nunca commitar secrets (.env.local gitignored, CLAUDE.md sem chaves cruas — GitHub secret scanning push protection ativo)
+
+## Pendências próximas sessões
+
+### Curto prazo
+1. **[Bruno cadastrar]** As ~15 recorrências mapeadas no `docs/analise-extratos-2026-04.md` (aluguel, copel, sanepar, etc) com `data_inicio = 2026-04-01`
+2. **Materialização retroativa** — alterar função `materializar_recorrencia` pra também gerar previstas dos últimos 90 dias (necessário pra match no /importar com extratos passados)
+3. **Importar extratos abr/mai 2026** — validar fluxo end-to-end com dados reais
+
+### Médio prazo
+4. **Conectar webhook Greenn** — adicionar nó HTTP no workflow n8n `gWFz6MCkY4p2mizi` pra POST em `/api/webhooks/greenn` (header `x-webhook-secret`)
+5. **Bot WhatsApp** — Bruno fornecer número dedicado pra criar grupo Bruno+Day+bot
+6. **Cleanup buscadorgeek** — remover domínio `financeiro.buscadorgeek.com.br` do EasyPanel após validar tudo
+
+## Bugs corrigidos nesta jornada
+
+| # | Bug | Fix |
+|---|---|---|
+| 1 | `clip` do Git Bash quebra UTF-8 nos acentos | Usar `Set-Clipboard -Value (Get-Content -Raw -Encoding UTF8 ...)` via PowerShell |
+| 2 | EasyPanel free limita a 3 projetos | Criar serviço financeiro dentro do projeto `ofertas-beta` existente |
+| 3 | EasyPanel `updateSourceGithub` requer GitHub App autorizado | Usar `updateSourceGit` com URL pública (`https://github.com/brunotropolis/financeiro.git`) + repo público |
+| 4 | EasyPanel `domains.createDomain` schema confuso | Criar via UI; updateDomain via API com `composeService: ""` (não null) |
+| 5 | Cloudflare zone "initializing" não responde queries | Selecionar plano Free pelo dashboard antes da delegação |
+| 6 | Registro.br "Pesquisa recusada" galinha-ovo | Ativar plano CF primeiro, salvar no registro.br ignorando warning |
+| 7 | brunotropolis.com.br perdeu projetos/CNAME ao migrar | Pré-popular zona Cloudflare com TODOS os records antes da troca NS |
+| 8 | Login redirecionava pra /campanhas (ofertas-beta) | Trocar pra `/dashboard` + branding "💰 Financeiro" |
+| 9 | GitHub secret scanning bloqueou push (Cloudflare token no CLAUDE.md) | `git commit --amend` removendo o secret antes do push |
+| 10 | git credential fill travava (sem GUI prompt) | Usar PAT (`ghp_*`) via `git remote set-url origin https://x-access-token:<token>@github.com/...` |
+| 11 | EasyPanel auto-deploy não acionou | Trigger manual via UI ou API após cada push — adotado como política |
+| 12 | Middleware crash em cookie inválido (`Cannot create property 'user' on string 'invalid'`) | Wrap `auth.getUser()` em try/catch + limpa cookies `sb-*` corrompidos |
+| 13 | Página redirecionava pra `/login` em rotas públicas (`/esqueci-senha`, `/redefinir-senha`) | Adicionar à lista `PUBLIC_AUTH_PAGES` no middleware |
+| 14 | Cloudflare 421 Misdirected Request no buscadorgeek.com.br root | Page Rule de redirect 301 → app.buscadorgeek.com.br |
+| 15 | projetos.buscadorgeek.com.br e projetos.brunotropolis.com.br caíram após migração NS | Forçar re-check DNS no GitHub Pages settings → cert SSL re-emitido |
+| 16 | `/importar` retornava "Expected ',' or ']' in JSON at position 20726" | max_tokens de 8000 → 16000 + parser resiliente que reconstrói até último `}` válido |
+| 17 | "stack depth limit exceeded" ao salvar recorrência | Migration 002 — função do trigger detecta mudanças materiais antes de re-materializar; removido UPDATE de `ultima_geracao_em` que disparava trigger em loop |
+
+## Análise dos extratos reais (abr/mai 2026)
+
+Documentação completa em `docs/analise-extratos-2026-04.md`. Resumo:
+- **6 PDFs analisados:** Conta Simples Cartões + Corrente, BB Manual RN (Mai + Abr), Unicred Manual RN + Dream Baby
+- **Fluxo do dinheiro:** Greenn → Dream Baby → Manual RN → Conta Simples Corrente → Cartões CS
+- **15 recorrências sugeridas** + 1 semanal (Maria diarista R$ 249 com pode_pular ON)
+- **Padrões de categorização** automática mapeados (Facebook→Anúncio, Uber→Transporte, etc)
+- **Transferências internas dominam volume** — sistema flagra automaticamente (entidades Manual RN, Dream Baby, MRN Serviços, Bruno, Dayane)
 
 ---
 
