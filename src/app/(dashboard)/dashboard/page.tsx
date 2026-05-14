@@ -1,6 +1,7 @@
 import { dbServer } from "@/lib/supabase/db";
-import { TrendingUp, TrendingDown, Wallet, ScrollText, AlertCircle, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, ScrollText, AlertCircle, Target, Megaphone, ExternalLink } from "lucide-react";
 import { formatBRL, formatDate } from "@/lib/formatters";
+import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,9 @@ export default async function DashboardPage() {
 
   // Roda detecção de atrasos antes de buscar
   await db.rpc("detectar_atrasos");
+
+  // Meta Ads do mês (live, externo — collector atualiza a cada hora)
+  const metaPromise = fetchMetaAdsResumo("mes");
 
   const [contasRes, entRes, txRes, recRes, atrasadasRes, orcRes] = await Promise.all([
     db.from("contas_bancarias").select("id,nome,saldo_atual,banco,entidade_id,cor_hex").eq("ativo", true).order("ordem"),
@@ -62,6 +66,10 @@ export default async function DashboardPage() {
     .slice(0, 6);
   const totalOrcado = orcamentos.reduce((s, o) => s + Number(o.valor_previsto), 0);
   const totalGastoOrc = orcamentos.reduce((s, o) => s + Number(o.gasto_real), 0);
+
+  // Aguarda Meta (já started no Promise.all)
+  const meta = await metaPromise;
+  const roasReal = meta?.roas_real ?? 0;
 
   const saldoTotal = contas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
@@ -135,6 +143,64 @@ export default async function DashboardPage() {
                 Ver todas ({atrasadas.length}) →
               </Link>
             )}
+          </div>
+        </div>
+      )}
+
+      {meta && (
+        <div className="bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border border-blue-900/50 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-blue-400" /> Meta Ads — mês atual
+            </h2>
+            <a
+              href="https://brunotropolis.github.io/meta-ads-dashboard/"
+              target="_blank"
+              rel="noopener"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              Ver dashboard <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Investido</div>
+              <div className="text-xl font-bold text-rose-300">{formatBRL(meta.gasto_total)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                {meta.impressoes.toLocaleString("pt-BR")} impressões
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Faturamento Greenn</div>
+              <div className="text-xl font-bold text-emerald-300">{formatBRL(meta.faturamento_greenn)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                Ticket médio: {formatBRL(meta.ticket_medio)}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">ROAS Real</div>
+              <div
+                className={`text-xl font-bold ${
+                  roasReal >= 2 ? "text-emerald-300" : roasReal >= 1 ? "text-amber-300" : "text-rose-300"
+                }`}
+              >
+                {roasReal > 0 ? `${roasReal.toFixed(2)}x` : "—"}
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                Líquido: {formatBRL(meta.faturamento_greenn - meta.gasto_total)}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">CPC médio</div>
+              <div className="text-xl font-bold text-white">{formatBRL(meta.cpc_medio)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                {meta.cliques.toLocaleString("pt-BR")} cliques · CTR {meta.ctr_medio.toFixed(2)}%
+              </div>
+            </div>
           </div>
         </div>
       )}
