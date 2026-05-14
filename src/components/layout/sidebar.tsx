@@ -17,11 +17,13 @@ import {
   Settings,
   CalendarRange,
   Upload,
+  Target,
 } from "lucide-react";
 
 const navMain = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projecao", label: "Projeção", icon: CalendarRange },
+  { href: "/orcamento", label: "Orçamento", icon: Target },
   { href: "/transacoes", label: "Transações", icon: TrendingDown },
   { href: "/receitas", label: "Receitas", icon: TrendingUp },
   { href: "/recorrencias", label: "Recorrências", icon: Repeat },

@@ -1,5 +1,5 @@
 import { dbServer } from "@/lib/supabase/db";
-import { TrendingUp, TrendingDown, Wallet, ScrollText, AlertCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, ScrollText, AlertCircle, Target } from "lucide-react";
 import { formatBRL, formatDate } from "@/lib/formatters";
 import Link from "next/link";
 
@@ -22,7 +22,7 @@ export default async function DashboardPage() {
   // Roda detecção de atrasos antes de buscar
   await db.rpc("detectar_atrasos");
 
-  const [contasRes, entRes, txRes, recRes, atrasadasRes] = await Promise.all([
+  const [contasRes, entRes, txRes, recRes, atrasadasRes, orcRes] = await Promise.all([
     db.from("contas_bancarias").select("id,nome,saldo_atual,banco,entidade_id,cor_hex").eq("ativo", true).order("ordem"),
     db.from("entidades").select("id,nome,tipo,cor_hex").eq("ativo", true).order("ordem"),
     db.from("transacoes")
@@ -36,6 +36,10 @@ export default async function DashboardPage() {
       .eq("status", "atrasada")
       .order("data_competencia")
       .limit(20),
+    db.from("v_orcamento_realizado")
+      .select("categoria_id,categoria_nome,categoria_cor,valor_previsto,gasto_real,pct_usado,status")
+      .eq("mes_referencia", inicioMesISO)
+      .gt("valor_previsto", 0),
   ]);
 
   const contas = (contasRes.data ?? []) as ContaSlim[];
@@ -43,6 +47,21 @@ export default async function DashboardPage() {
   const transacoes = (txRes.data ?? []) as TxSlim[];
   const receitas = (recRes.data ?? []) as RecSlim[];
   const atrasadas = (atrasadasRes.data ?? []) as Array<{ id: string; descricao: string; valor: number; data_competencia: string }>;
+  const orcamentos = (orcRes.data ?? []) as Array<{
+    categoria_id: string;
+    categoria_nome: string;
+    categoria_cor: string | null;
+    valor_previsto: number;
+    gasto_real: number;
+    pct_usado: number | null;
+    status: "ok" | "atencao" | "estourou" | "sem_orcamento" | "sem_dados";
+  }>;
+  // Ordena por % usado desc (mais críticos no topo) e pega top 6
+  const orcamentosTop = [...orcamentos]
+    .sort((a, b) => (Number(b.pct_usado ?? 0)) - (Number(a.pct_usado ?? 0)))
+    .slice(0, 6);
+  const totalOrcado = orcamentos.reduce((s, o) => s + Number(o.valor_previsto), 0);
+  const totalGastoOrc = orcamentos.reduce((s, o) => s + Number(o.gasto_real), 0);
 
   const saldoTotal = contas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
@@ -150,23 +169,68 @@ export default async function DashboardPage() {
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <ScrollText className="w-4 h-4" /> Atalhos
-          </h2>
-          <div className="grid grid-cols-2 gap-2">
-            <Link href="/transacoes" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-200 text-center">Nova despesa</Link>
-            <Link href="/receitas" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-200 text-center">Nova receita</Link>
-            <Link href="/recorrencias" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-200 text-center">Recorrências</Link>
-            <Link href="/faturas" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-200 text-center">Faturas</Link>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <Target className="w-4 h-4 text-amber-400" /> Orçamento do mês
+            </h2>
+            <Link href="/orcamento" className="text-xs text-amber-400 hover:text-amber-300">Ver tudo →</Link>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-500">
-            <p className="mb-1">Sprint 2 trará:</p>
-            <ul className="list-disc list-inside space-y-0.5 text-gray-600">
-              <li>Gráfico de fluxo de caixa 6 meses</li>
-              <li>Sincronização Greenn → receitas</li>
-              <li>Importação CSV de extrato bancário</li>
-            </ul>
+          {orcamentosTop.length === 0 ? (
+            <div className="text-sm text-gray-500 py-3">
+              <p className="mb-2">Nenhum orçamento definido este mês.</p>
+              <Link href="/orcamento" className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300">
+                <Target className="w-3.5 h-3.5" /> Definir orçamento →
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs text-gray-400 mb-3 pb-3 border-b border-gray-800">
+                <div>
+                  <div className="text-gray-500 mb-0.5">Total orçado</div>
+                  <div className="font-mono text-white">{formatBRL(totalOrcado)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-gray-500 mb-0.5">Gasto real</div>
+                  <div className={`font-mono ${totalGastoOrc > totalOrcado ? "text-rose-400" : "text-emerald-400"}`}>
+                    {formatBRL(totalGastoOrc)}
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                {orcamentosTop.map((o) => {
+                  const pct = Number(o.pct_usado ?? 0);
+                  const pctClamped = Math.min(pct, 100);
+                  const barColor =
+                    o.status === "estourou" ? "bg-rose-500" :
+                    o.status === "atencao" ? "bg-amber-500" : "bg-emerald-500";
+                  const textColor =
+                    o.status === "estourou" ? "text-rose-400" :
+                    o.status === "atencao" ? "text-amber-400" : "text-emerald-400";
+                  return (
+                    <Link key={o.categoria_id} href="/orcamento" className="block group">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: o.categoria_cor ?? "#6b7280" }} />
+                          <span className="text-xs text-gray-300 truncate group-hover:text-white">{o.categoria_nome}</span>
+                        </div>
+                        <div className={`text-xs font-mono ${textColor}`}>
+                          {formatBRL(o.gasto_real)} <span className="text-gray-600">/ {formatBRL(o.valor_previsto)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                        <div className={`h-full ${barColor} transition-all`} style={{ width: `${pctClamped}%` }} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          <div className="mt-5 pt-4 border-t border-gray-800 grid grid-cols-2 gap-2">
+            <Link href="/transacoes" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-200 text-center">Nova despesa</Link>
+            <Link href="/receitas" className="px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs text-gray-200 text-center">Nova receita</Link>
           </div>
         </div>
       </div>
