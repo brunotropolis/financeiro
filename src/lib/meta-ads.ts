@@ -27,9 +27,19 @@ export type MetaResposta = {
   last_sync: string;
 };
 
+function num(v: unknown): number {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
 /**
  * Busca métricas do Meta Ads para um período.
  * Cache 1h (Next.js revalidation) — collector externo atualiza a cada hora.
+ * Faz coerce de string→number porque a API n8n às vezes retorna strings.
  */
 export async function fetchMetaAdsResumo(
   periodo: "hoje" | "ontem" | "semana" | "mes" = "mes"
@@ -40,8 +50,21 @@ export async function fetchMetaAdsResumo(
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as MetaResposta;
-    return json.resumo ?? null;
+    const json = (await res.json()) as Partial<MetaResposta>;
+    const r = json.resumo;
+    if (!r) return null;
+    return {
+      gasto_total: num(r.gasto_total),
+      impressoes: num(r.impressoes),
+      cliques: num(r.cliques),
+      ctr_medio: num(r.ctr_medio),
+      cpc_medio: num(r.cpc_medio),
+      conversoes_meta: num(r.conversoes_meta),
+      roas_meta: num(r.roas_meta),
+      faturamento_greenn: num(r.faturamento_greenn),
+      roas_real: num(r.roas_real),
+      ticket_medio: num(r.ticket_medio),
+    };
   } catch (e) {
     console.warn("Meta Ads fetch falhou:", e);
     return null;
