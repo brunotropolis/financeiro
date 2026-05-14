@@ -56,7 +56,8 @@ export default async function DashboardPage({
       .select("tipo,valor,status")
       .gte("data_competencia", inicio)
       .lte("data_competencia", fim)
-      .neq("status", "cancelada"),
+      .neq("status", "cancelada")
+      .not("descricao", "ilike", "Meta Ads%"),
     db
       .from("receitas_brutas")
       .select("valor_liquido,status")
