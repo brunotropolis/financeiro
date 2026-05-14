@@ -46,10 +46,16 @@ type CampanhaRaw = {
  * Cache 1h (Next.js revalidation) — collector externo atualiza a cada hora.
  */
 export async function fetchMetaAdsResumo(
-  periodo: "hoje" | "ontem" | "semana" | "mes" = "mes"
+  periodo: "hoje" | "ontem" | "semana" | "mes" | "personalizado" = "mes",
+  dataInicio?: string,
+  dataFim?: string,
 ): Promise<MetaResumo | null> {
   try {
-    const res = await fetch(`${META_DASHBOARD_API}?periodo=${periodo}`, {
+    let url = `${META_DASHBOARD_API}?periodo=${periodo}`;
+    if (periodo === "personalizado" && dataInicio && dataFim) {
+      url += `&data_inicio=${dataInicio}&data_fim=${dataFim}`;
+    }
+    const res = await fetch(url, {
       next: { revalidate: 3600 }, // 1h
       signal: AbortSignal.timeout(20000),
     });
