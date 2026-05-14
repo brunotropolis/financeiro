@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type {
   CartaoCredito, Categoria, ContaBancaria, Entidade, Fornecedor,
-  FormaPagamento, FrequenciaRecorrencia, Recorrencia, TipoTransacao,
+  FormaPagamento, FrequenciaRecorrencia, Recorrencia, TipoTransacao, TipoValorRecorrencia,
 } from "@/lib/types/database";
-import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Banknote, PiggyBank } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,20 @@ type CatLite = Pick<Categoria, "id" | "nome" | "tipo" | "cor_hex" | "ativo">;
 type FornLite = Pick<Fornecedor, "id" | "nome" | "ativo">;
 type CartLite = Pick<CartaoCredito, "id" | "nome" | "entidade_id" | "ativo">;
 type ContaLite = Pick<ContaBancaria, "id" | "nome" | "banco" | "entidade_id" | "ativo">;
+
+export type BucketRealizado = {
+  recorrencia_id: string;
+  gasto_real: number;
+  qtd_transacoes: number;
+  pct_usado: number | null;
+  status: "ok" | "atencao" | "estourou" | "sem_estimativa";
+};
+
+const TIPOS_VALOR: { value: TipoValorRecorrencia; label: string; icon: typeof Wallet; desc: string }[] = [
+  { value: "fixo", label: "Fixo", icon: Banknote, desc: "Valor exato, sempre igual (aluguel, Spotify, ferramentas SaaS)" },
+  { value: "variavel", label: "Variável", icon: Wallet, desc: "Cadastra valor médio; ao pagar, ajusta para o real (luz, água, fornecedor c/ comissão)" },
+  { value: "bucket", label: "Bucket (estimativa)", icon: PiggyBank, desc: "Teto mensal; agrega todas as transações da mesma categoria (alimentação, mercado, uber)" },
+];
 
 const FREQUENCIAS: { value: FrequenciaRecorrencia; label: string }[] = [
   { value: "semanal", label: "Semanal" },
@@ -60,6 +74,7 @@ export function RecorrenciasClient({
   fornecedores,
   cartoes,
   contas,
+  buckets,
 }: {
   recorrencias: Recorrencia[];
   entidades: EntLite[];
@@ -67,7 +82,13 @@ export function RecorrenciasClient({
   fornecedores: FornLite[];
   cartoes: CartLite[];
   contas: ContaLite[];
+  buckets: BucketRealizado[];
 }) {
+  const bucketsByRec = useMemo(() => {
+    const m = new Map<string, BucketRealizado>();
+    for (const b of buckets) m.set(b.recorrencia_id, b);
+    return m;
+  }, [buckets]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recorrencia | null>(null);
 
@@ -134,11 +155,11 @@ export function RecorrenciasClient({
             <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
               <tr>
                 <th className="text-left px-4 py-3">Nome</th>
-                <th className="text-left px-4 py-3">Entidade</th>
+                <th className="text-center px-4 py-3">Tipo</th>
                 <th className="text-left px-4 py-3">Categoria</th>
-                <th className="text-center px-4 py-3">Vence dia</th>
+                <th className="text-center px-4 py-3">Vence</th>
                 <th className="text-center px-4 py-3">Freq.</th>
-                <th className="text-right px-4 py-3">Valor padrão</th>
+                <th className="text-right px-4 py-3 w-72">Valor / Realizado</th>
                 <th className="text-center px-4 py-3">Ativa</th>
                 <th className="text-right px-4 py-3 w-24">Ações</th>
               </tr>
@@ -150,6 +171,7 @@ export function RecorrenciasClient({
                   rec={r}
                   entidade={entidades.find((e) => e.id === r.entidade_id)}
                   categoria={categorias.find((c) => c.id === r.categoria_id)}
+                  bucket={bucketsByRec.get(r.id)}
                   onEdit={() => { setEditing(r); setOpen(true); }}
                 />
               ))}
@@ -177,11 +199,13 @@ function Row({
   rec,
   entidade,
   categoria,
+  bucket,
   onEdit,
 }: {
   rec: Recorrencia;
   entidade?: EntLite;
   categoria?: CatLite;
+  bucket?: BucketRealizado;
   onEdit: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -197,6 +221,20 @@ function Row({
     });
   }
 
+  const tipoValor = rec.tipo_valor ?? "fixo";
+  const isBucket = tipoValor === "bucket";
+  const gastoReal = Number(bucket?.gasto_real ?? 0);
+  const pct = Number(bucket?.pct_usado ?? 0);
+  const pctClamped = Math.min(pct, 100);
+  const barColor =
+    bucket?.status === "estourou" ? "bg-rose-500" :
+    bucket?.status === "atencao" ? "bg-amber-500" :
+    "bg-emerald-500";
+  const textColor =
+    bucket?.status === "estourou" ? "text-rose-400" :
+    bucket?.status === "atencao" ? "text-amber-400" :
+    "text-emerald-400";
+
   return (
     <tr className={"hover:bg-gray-800/30 " + (rec.ativo ? "" : "opacity-60")}>
       <td className="px-4 py-3">
@@ -206,17 +244,26 @@ function Row({
           ) : (
             <TrendingDown className="w-3.5 h-3.5 text-rose-400 shrink-0" />
           )}
-          <span className="text-sm font-medium text-white">{rec.nome}</span>
+          <div>
+            <div className="text-sm font-medium text-white">{rec.nome}</div>
+            {entidade && (
+              <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entidade.cor_hex ?? "#6b7280" }} />
+                {entidade.nome}
+              </div>
+            )}
+          </div>
         </div>
         {rec.notas && <div className="text-xs text-gray-500 mt-0.5 ml-5 line-clamp-1">{rec.notas}</div>}
       </td>
-      <td className="px-4 py-3">
-        {entidade ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entidade.cor_hex ?? "#6b7280" }} />
-            <span className="text-sm text-gray-300">{entidade.nome}</span>
-          </div>
-        ) : <span className="text-xs text-gray-600">—</span>}
+      <td className="px-4 py-3 text-center">
+        <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-1 rounded-full ${
+          tipoValor === "bucket" ? "bg-purple-950/50 text-purple-300 border border-purple-800/50" :
+          tipoValor === "variavel" ? "bg-amber-950/50 text-amber-300 border border-amber-800/50" :
+          "bg-gray-800 text-gray-400 border border-gray-700"
+        }`}>
+          {tipoValor === "bucket" ? "Bucket" : tipoValor === "variavel" ? "Variável" : "Fixo"}
+        </span>
       </td>
       <td className="px-4 py-3">
         {categoria ? (
@@ -226,11 +273,32 @@ function Row({
           </div>
         ) : <span className="text-xs text-gray-600">—</span>}
       </td>
-      <td className="px-4 py-3 text-center text-sm font-mono text-gray-300">{rec.dia_vencimento}</td>
-      <td className="px-4 py-3 text-center text-xs text-gray-400">
-        {FREQUENCIAS.find((f) => f.value === rec.frequencia)?.label}
+      <td className="px-4 py-3 text-center text-sm font-mono text-gray-300">
+        {isBucket ? "—" : `dia ${rec.dia_vencimento}`}
       </td>
-      <td className="px-4 py-3 text-right text-sm font-mono text-white">{formatBRL(rec.valor_padrao)}</td>
+      <td className="px-4 py-3 text-center text-xs text-gray-400">
+        {isBucket ? "Mensal" : FREQUENCIAS.find((f) => f.value === rec.frequencia)?.label}
+      </td>
+      <td className="px-4 py-3">
+        {isBucket ? (
+          <div>
+            <div className="flex justify-between items-center mb-1 text-xs font-mono">
+              <span className={textColor}>{formatBRL(gastoReal)}</span>
+              <span className="text-gray-500">/ {formatBRL(rec.valor_padrao)}</span>
+            </div>
+            <div className="bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className={`h-full ${barColor} transition-all`} style={{ width: `${pctClamped}%` }} />
+            </div>
+            {bucket && (
+              <div className="text-[10px] text-gray-500 mt-1 text-right">
+                {bucket.qtd_transacoes} transaç{bucket.qtd_transacoes === 1 ? "ão" : "ões"} · {pct.toFixed(0)}%
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-right text-sm font-mono text-white">{formatBRL(rec.valor_padrao)}</div>
+        )}
+      </td>
       <td className="px-4 py-3 text-center">
         <Switch checked={rec.ativo} onCheckedChange={toggle} disabled={pending} />
       </td>
@@ -270,6 +338,7 @@ function RecorrenciaFormDialog({
 
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<TipoTransacao>("despesa");
+  const [tipoValor, setTipoValor] = useState<TipoValorRecorrencia>("fixo");
   const [valor, setValor] = useState("0");
   const [diaVenc, setDiaVenc] = useState("5");
   const [diaSemana, setDiaSemana] = useState("5"); // sexta
@@ -289,6 +358,7 @@ function RecorrenciaFormDialog({
     if (!open) return;
     setNome(recorrencia?.nome ?? "");
     setTipo((recorrencia?.tipo as TipoTransacao) ?? "despesa");
+    setTipoValor((recorrencia?.tipo_valor as TipoValorRecorrencia) ?? "fixo");
     setValor(recorrencia ? String(recorrencia.valor_padrao) : "0");
     setDiaVenc(String(recorrencia?.dia_vencimento ?? 5));
     setDiaSemana(String(recorrencia?.dia_semana ?? 5));
@@ -320,10 +390,19 @@ function RecorrenciaFormDialog({
     if (!v || v <= 0) return setErro("Valor deve ser maior que zero.");
     if (!entidadeId) return setErro("Selecione uma entidade.");
 
-    // Validação meio de pagamento
-    if (forma === "cartao_credito" && !cartaoId) return setErro("Selecione o cartão.");
-    if (["pix", "boleto", "cartao_debito", "transferencia"].includes(forma) && !contaId) {
-      return setErro("Selecione a conta.");
+    // Buckets exigem categoria (agregam por categoria_id)
+    if (tipoValor === "bucket" && !catId) {
+      return setErro("Buckets precisam de uma categoria para agregar as transações.");
+    }
+
+    const isBucket = tipoValor === "bucket";
+
+    // Validação meio de pagamento (não aplica pra bucket — não materializa)
+    if (!isBucket) {
+      if (forma === "cartao_credito" && !cartaoId) return setErro("Selecione o cartão.");
+      if (["pix", "boleto", "cartao_debito", "transferencia"].includes(forma) && !contaId) {
+        return setErro("Selecione a conta.");
+      }
     }
 
     const isSemanal = freq === "semanal" || freq === "quinzenal";
@@ -331,17 +410,18 @@ function RecorrenciaFormDialog({
       id: recorrencia?.id,
       nome,
       tipo,
+      tipo_valor: tipoValor,
       valor_padrao: v,
       dia_vencimento: dV,
       dia_semana: isSemanal ? parseInt(diaSemana) : null,
       pode_pular: podePular,
-      frequencia: freq,
+      frequencia: isBucket ? "mensal" : freq,
       entidade_id: entidadeId,
       categoria_id: catId || null,
       fornecedor_id: fornId || null,
-      forma_pagamento: (forma || null) as FormaPagamento | null,
-      cartao_id: forma === "cartao_credito" ? cartaoId : null,
-      conta_id: forma && forma !== "cartao_credito" && forma !== "dinheiro" ? contaId : null,
+      forma_pagamento: isBucket ? null : ((forma || null) as FormaPagamento | null),
+      cartao_id: isBucket ? null : (forma === "cartao_credito" ? cartaoId : null),
+      conta_id: isBucket ? null : (forma && forma !== "cartao_credito" && forma !== "dinheiro" ? contaId : null),
       data_inicio: dataInicio,
       data_fim: dataFim || null,
       notas,
@@ -362,13 +442,41 @@ function RecorrenciaFormDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
+          <div>
+            <Label className="mb-2 block">Tipo de valor</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {TIPOS_VALOR.map((t) => {
+                const Icon = t.icon;
+                const active = tipoValor === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTipoValor(t.value)}
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      active
+                        ? "bg-blue-950/50 border-blue-700 text-white"
+                        : "bg-gray-950 border-gray-800 hover:bg-gray-900 text-gray-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Icon className={`w-4 h-4 ${active ? "text-blue-400" : "text-gray-500"}`} />
+                      <span className="text-sm font-medium">{t.label}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-tight">{t.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <Label htmlFor="nome">Nome</Label>
-              <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required placeholder="Ex: Aluguel escritório" className="mt-1.5" />
+              <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required placeholder={tipoValor === "bucket" ? "Ex: Alimentação" : "Ex: Aluguel escritório"} className="mt-1.5" />
             </div>
             <div>
-              <Label>Tipo</Label>
+              <Label>Despesa/Receita</Label>
               <Select value={tipo} onValueChange={(v) => { setTipo(v as TipoTransacao); setCatId(""); }}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -381,52 +489,63 @@ function RecorrenciaFormDialog({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="valor">Valor padrão (R$)</Label>
+              <Label htmlFor="valor">
+                {tipoValor === "bucket" ? "Teto mensal (R$)" : tipoValor === "variavel" ? "Valor médio (R$)" : "Valor (R$)"}
+              </Label>
               <Input id="valor" type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required className="mt-1.5" />
+              {tipoValor === "variavel" && (
+                <p className="text-[11px] text-gray-500 mt-1">Ao pagar, o valor real substitui no histórico do mês.</p>
+              )}
             </div>
-            <div>
-              <Label>Frequência</Label>
-              <Select value={freq} onValueChange={(v) => setFreq(v as FrequenciaRecorrencia)}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {FREQUENCIAS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {(freq === "semanal" || freq === "quinzenal") ? (
+            {tipoValor !== "bucket" && (
               <div>
-                <Label>Dia da semana</Label>
-                <Select value={diaSemana} onValueChange={setDiaSemana}>
+                <Label>Frequência</Label>
+                <Select value={freq} onValueChange={(v) => setFreq(v as FrequenciaRecorrencia)}>
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {DIAS_SEMANA.map((d) => (
-                      <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                    {FREQUENCIAS.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
-              <div>
-                <Label htmlFor="dia">Vence dia</Label>
-                <Input id="dia" type="number" min={1} max={31} value={diaVenc} onChange={(e) => setDiaVenc(e.target.value)} required className="mt-1.5" />
-              </div>
+            )}
+            {tipoValor !== "bucket" && (
+              (freq === "semanal" || freq === "quinzenal") ? (
+                <div>
+                  <Label>Dia da semana</Label>
+                  <Select value={diaSemana} onValueChange={setDiaSemana}>
+                    <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DIAS_SEMANA.map((d) => (
+                        <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="dia">Vence dia</Label>
+                  <Input id="dia" type="number" min={1} max={31} value={diaVenc} onChange={(e) => setDiaVenc(e.target.value)} required className="mt-1.5" />
+                </div>
+              )
             )}
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-950 border border-gray-800">
-            <Switch checked={podePular} onCheckedChange={setPodePular} />
-            <div>
-              <Label className="cursor-pointer" onClick={() => setPodePular(!podePular)}>
-                Pode pular ocorrência
-              </Label>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Marca quando o pagamento pode não ocorrer (ex: diarista que falta).
-                Não dispara alerta de atraso se não bater com extrato.
-              </p>
+          {tipoValor !== "bucket" && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-950 border border-gray-800">
+              <Switch checked={podePular} onCheckedChange={setPodePular} />
+              <div>
+                <Label className="cursor-pointer" onClick={() => setPodePular(!podePular)}>
+                  Pode pular ocorrência
+                </Label>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Marca quando o pagamento pode não ocorrer (ex: diarista que falta).
+                  Não dispara alerta de atraso se não bater com extrato.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -450,53 +569,57 @@ function RecorrenciaFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Fornecedor (opcional)</Label>
-              <Select value={fornId || "__none__"} onValueChange={(v) => setFornId(v === "__none__" ? "" : v)}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem fornecedor" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— sem fornecedor —</SelectItem>
-                  {fornecedores.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Forma de pagamento</Label>
-              <Select value={forma || "__none__"} onValueChange={(v) => { setForma(v === "__none__" ? "" : (v as FormaPagamento)); setCartaoId(""); setContaId(""); }}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Não definida" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— não definida —</SelectItem>
-                  {FORMAS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {tipoValor !== "bucket" && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Fornecedor (opcional)</Label>
+                  <Select value={fornId || "__none__"} onValueChange={(v) => setFornId(v === "__none__" ? "" : v)}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem fornecedor" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— sem fornecedor —</SelectItem>
+                      {fornecedores.map((f) => <SelectItem key={f.id} value={f.id}>{f.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Forma de pagamento</Label>
+                  <Select value={forma || "__none__"} onValueChange={(v) => { setForma(v === "__none__" ? "" : (v as FormaPagamento)); setCartaoId(""); setContaId(""); }}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Não definida" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— não definida —</SelectItem>
+                      {FORMAS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          {forma === "cartao_credito" && (
-            <div>
-              <Label>Cartão</Label>
-              <Select value={cartaoId} onValueChange={setCartaoId}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione o cartão" /></SelectTrigger>
-                <SelectContent>
-                  {cartoesFiltrados.length === 0 && <SelectItem value="__empty__" disabled>Nenhum cartão pra essa entidade</SelectItem>}
-                  {cartoesFiltrados.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+              {forma === "cartao_credito" && (
+                <div>
+                  <Label>Cartão</Label>
+                  <Select value={cartaoId} onValueChange={setCartaoId}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione o cartão" /></SelectTrigger>
+                    <SelectContent>
+                      {cartoesFiltrados.length === 0 && <SelectItem value="__empty__" disabled>Nenhum cartão pra essa entidade</SelectItem>}
+                      {cartoesFiltrados.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-          {forma && forma !== "cartao_credito" && forma !== "dinheiro" && (
-            <div>
-              <Label>Conta</Label>
-              <Select value={contaId} onValueChange={setContaId}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
-                <SelectContent>
-                  {contasFiltradas.length === 0 && <SelectItem value="__empty__" disabled>Nenhuma conta pra essa entidade</SelectItem>}
-                  {contasFiltradas.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+              {forma && forma !== "cartao_credito" && forma !== "dinheiro" && (
+                <div>
+                  <Label>Conta</Label>
+                  <Select value={contaId} onValueChange={setContaId}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
+                    <SelectContent>
+                      {contasFiltradas.length === 0 && <SelectItem value="__empty__" disabled>Nenhuma conta pra essa entidade</SelectItem>}
+                      {contasFiltradas.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

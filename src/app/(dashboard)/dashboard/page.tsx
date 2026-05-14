@@ -64,23 +64,23 @@ export default async function DashboardPage({
       .gte("data_venda", inicio)
       .lte("data_venda", fim),
     db
-      .from("v_orcamento_realizado")
-      .select("categoria_id,categoria_nome,categoria_cor,valor_previsto,gasto_real,pct_usado,status")
-      .eq("mes_referencia", inicioMesAtual)
-      .gt("valor_previsto", 0),
+      .from("v_buckets_realizados")
+      .select("recorrencia_id,bucket_nome,categoria_cor,valor_estimado,gasto_real,qtd_transacoes,pct_usado,status")
+      .eq("mes_referencia", inicioMesAtual),
   ]);
 
   const contas = (contasRes.data ?? []) as ContaSlim[];
   const transacoes = (txRes.data ?? []) as TxSlim[];
   const receitas = (recRes.data ?? []) as RecSlim[];
-  const orcamentos = (orcRes.data ?? []) as Array<{
-    categoria_id: string;
-    categoria_nome: string;
+  const buckets = (orcRes.data ?? []) as Array<{
+    recorrencia_id: string;
+    bucket_nome: string;
     categoria_cor: string | null;
-    valor_previsto: number;
+    valor_estimado: number;
     gasto_real: number;
+    qtd_transacoes: number;
     pct_usado: number | null;
-    status: "ok" | "atencao" | "estourou" | "sem_orcamento" | "sem_dados";
+    status: "ok" | "atencao" | "estourou" | "sem_estimativa";
   }>;
 
   const meta = await metaPromise;
@@ -109,11 +109,11 @@ export default async function DashboardPage({
 
   const resultado = totalReceita - despesasRealizadas;
 
-  const orcamentosTop = [...orcamentos]
+  const bucketsTop = [...buckets]
     .sort((a, b) => Number(b.pct_usado ?? 0) - Number(a.pct_usado ?? 0))
     .slice(0, 6);
-  const totalOrcado = orcamentos.reduce((s, o) => s + Number(o.valor_previsto), 0);
-  const totalGastoOrc = orcamentos.reduce((s, o) => s + Number(o.gasto_real), 0);
+  const totalBucketEstimado = buckets.reduce((s, o) => s + Number(o.valor_estimado), 0);
+  const totalBucketReal = buckets.reduce((s, o) => s + Number(o.gasto_real), 0);
 
   const periodoLabel = periodo === "3m" ? "3 meses" : periodo === "6m" ? "6 meses" : "mês";
 
@@ -242,45 +242,45 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {/* Orçamento do mês (sempre mês atual) */}
+      {/* Buckets do mês (sempre mês atual) */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-            <Target className="w-4 h-4 text-amber-400" /> Orçamento do mês
+            <Target className="w-4 h-4 text-amber-400" /> Buckets do mês
           </h2>
-          <Link href="/orcamento" className="text-xs text-amber-400 hover:text-amber-300">
+          <Link href="/recorrencias" className="text-xs text-amber-400 hover:text-amber-300">
             Ver tudo →
           </Link>
         </div>
 
-        {orcamentosTop.length === 0 ? (
+        {bucketsTop.length === 0 ? (
           <div className="text-sm text-gray-500 py-3">
-            <p className="mb-2">Nenhum orçamento definido este mês.</p>
+            <p className="mb-2">Nenhum bucket cadastrado.</p>
             <Link
-              href="/orcamento"
+              href="/recorrencias"
               className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
             >
-              <Target className="w-3.5 h-3.5" /> Definir orçamento →
+              <Target className="w-3.5 h-3.5" /> Criar recorrência tipo bucket →
             </Link>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between text-xs text-gray-400 mb-3 pb-3 border-b border-gray-800">
               <div>
-                <div className="text-gray-500 mb-0.5">Total orçado</div>
-                <div className="font-mono text-white">{formatBRL(totalOrcado)}</div>
+                <div className="text-gray-500 mb-0.5">Total estimado</div>
+                <div className="font-mono text-white">{formatBRL(totalBucketEstimado)}</div>
               </div>
               <div className="text-right">
                 <div className="text-gray-500 mb-0.5">Gasto real</div>
                 <div
-                  className={`font-mono ${totalGastoOrc > totalOrcado ? "text-rose-400" : "text-emerald-400"}`}
+                  className={`font-mono ${totalBucketReal > totalBucketEstimado ? "text-rose-400" : "text-emerald-400"}`}
                 >
-                  {formatBRL(totalGastoOrc)}
+                  {formatBRL(totalBucketReal)}
                 </div>
               </div>
             </div>
             <div className="space-y-2.5">
-              {orcamentosTop.map((o) => {
+              {bucketsTop.map((o) => {
                 const pct = Number(o.pct_usado ?? 0);
                 const pctClamped = Math.min(pct, 100);
                 const barColor =
@@ -296,7 +296,7 @@ export default async function DashboardPage({
                       ? "text-amber-400"
                       : "text-emerald-400";
                 return (
-                  <Link key={o.categoria_id} href="/orcamento" className="block group">
+                  <Link key={o.recorrencia_id} href="/recorrencias" className="block group">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
@@ -304,12 +304,15 @@ export default async function DashboardPage({
                           style={{ backgroundColor: o.categoria_cor ?? "#6b7280" }}
                         />
                         <span className="text-xs text-gray-300 truncate group-hover:text-white">
-                          {o.categoria_nome}
+                          {o.bucket_nome}
+                        </span>
+                        <span className="text-[10px] text-gray-600">
+                          ({o.qtd_transacoes} tx)
                         </span>
                       </div>
                       <div className={`text-xs font-mono ${textColor}`}>
                         {formatBRL(o.gasto_real)}{" "}
-                        <span className="text-gray-600">/ {formatBRL(o.valor_previsto)}</span>
+                        <span className="text-gray-600">/ {formatBRL(o.valor_estimado)}</span>
                       </div>
                     </div>
                     <div className="bg-gray-800 rounded-full h-1.5 overflow-hidden">

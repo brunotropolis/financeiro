@@ -2,12 +2,13 @@
 
 import { dbServer } from "@/lib/supabase/db";
 import { revalidatePath } from "next/cache";
-import type { FormaPagamento, FrequenciaRecorrencia, TipoTransacao } from "@/lib/types/database";
+import type { FormaPagamento, FrequenciaRecorrencia, TipoTransacao, TipoValorRecorrencia } from "@/lib/types/database";
 
 export type RecorrenciaInput = {
   id?: string;
   nome: string;
   tipo: TipoTransacao;
+  tipo_valor: TipoValorRecorrencia;
   valor_padrao: number;
   dia_vencimento: number;
   dia_semana?: number | null;
@@ -39,6 +40,7 @@ export async function salvarRecorrencia(input: RecorrenciaInput) {
   const payload = {
     nome: input.nome.trim(),
     tipo: input.tipo,
+    tipo_valor: input.tipo_valor,
     valor_padrao: input.valor_padrao,
     dia_vencimento: input.dia_vencimento,
     dia_semana: input.dia_semana ?? null,

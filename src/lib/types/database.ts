@@ -217,10 +217,13 @@ export interface Transacao {
   atualizado_em: string;
 }
 
+export type TipoValorRecorrencia = "fixo" | "variavel" | "bucket";
+
 export interface Recorrencia {
   id: string;
   nome: string;
   tipo: TipoTransacao;
+  tipo_valor: TipoValorRecorrencia;
   valor_padrao: number;
   dia_vencimento: number;
   frequencia: FrequenciaRecorrencia;
