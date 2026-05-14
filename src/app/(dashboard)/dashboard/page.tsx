@@ -168,15 +168,18 @@ export default async function DashboardPage() {
               <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Investido</div>
               <div className="text-xl font-bold text-rose-300">{formatBRL(meta.gasto_total)}</div>
               <div className="text-[11px] text-gray-500 mt-0.5">
-                {meta.impressoes.toLocaleString("pt-BR")} impressões
+                {meta.impressoes.toLocaleString("pt-BR")} impressões · {meta.num_campanhas} camps
               </div>
             </div>
 
             <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Faturamento Greenn</div>
-              <div className="text-xl font-bold text-emerald-300">{formatBRL(meta.faturamento_greenn)}</div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Faturamento líquido</div>
+              <div className="text-xl font-bold text-emerald-300">{formatBRL(meta.faturamento_liquido)}</div>
               <div className="text-[11px] text-gray-500 mt-0.5">
-                Ticket médio: {formatBRL(meta.ticket_medio)}
+                {meta.num_vendas} vendas · Bruto {formatBRL(meta.faturamento_bruto)}
+                {meta.reembolsos > 0 && (
+                  <> · <span className="text-rose-400">−{formatBRL(meta.reembolsos)}</span></>
+                )}
               </div>
             </div>
 
@@ -190,7 +193,7 @@ export default async function DashboardPage() {
                 {roasReal > 0 ? `${roasReal.toFixed(2)}x` : "—"}
               </div>
               <div className="text-[11px] text-gray-500 mt-0.5">
-                Líquido: {formatBRL(meta.faturamento_greenn - meta.gasto_total)}
+                Lucro: {formatBRL(meta.faturamento_liquido - meta.gasto_total)}
               </div>
             </div>
 
