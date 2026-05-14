@@ -94,7 +94,8 @@ export default async function DashboardPage({
   const receitasTransacoes = transacoes
     .filter((t) => t.tipo === "receita")
     .reduce((s, t) => s + Number(t.valor), 0);
-  const metaLiq = meta?.faturamento_liquido ?? 0;
+  // Meta: faturamento líquido (bruto - reembolsos) menos o que foi investido em ads
+  const metaLiq = meta ? Math.max(0, meta.faturamento_liquido - meta.gasto_total) : 0;
   const totalReceita = receitasBaixadas + receitasTransacoes + metaLiq;
 
   // Despesas: previsto (tudo lançado, excl. cancelada) vs realizado (paga)
@@ -212,6 +213,9 @@ export default async function DashboardPage({
               </div>
               <div className="text-lg font-bold text-emerald-300 mt-0.5">
                 {formatBRL(metaLiq)}
+              </div>
+              <div className="text-[10px] text-gray-500 mt-0.5">
+                Bruto {formatBRL(meta.faturamento_bruto)} − Reembolsos {formatBRL(meta.reembolsos)} − Investido {formatBRL(meta.gasto_total)}
               </div>
             </div>
           </div>
