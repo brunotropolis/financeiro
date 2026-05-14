@@ -4,6 +4,7 @@ import { formatBRL } from "@/lib/formatters";
 import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import Link from "next/link";
 import { PeriodoFilter } from "./periodo-filter";
+import { MetaSyncButton } from "./meta-sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -219,14 +220,17 @@ export default async function DashboardPage({
               </div>
             </div>
           </div>
-          <a
-            href="https://brunotropolis.github.io/meta-ads-dashboard/"
-            target="_blank"
-            rel="noopener"
-            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
-          >
-            Ver dashboard <ExternalLink className="w-3 h-3" />
-          </a>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <a
+              href="https://brunotropolis.github.io/meta-ads-dashboard/"
+              target="_blank"
+              rel="noopener"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              Ver dashboard <ExternalLink className="w-3 h-3" />
+            </a>
+            {periodo === "1m" && <MetaSyncButton />}
+          </div>
         </div>
       )}
 
