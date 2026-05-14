@@ -4,7 +4,6 @@ import { formatBRL } from "@/lib/formatters";
 import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import Link from "next/link";
 import { PeriodoFilter } from "./periodo-filter";
-import { MetaSyncButton } from "./meta-sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -88,24 +87,24 @@ export default async function DashboardPage({
   // Saldo atual das contas (sempre atual, não filtra por período)
   const saldoTotal = contas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
-  // Receitas: baixas em receitas_brutas + receitas em transacoes + Meta Ads faturamento_liquido
+  // Receitas: baixas em receitas_brutas + receitas em transacoes + Meta faturamento_liquido (bruto - reembolsos)
   const receitasBaixadas = receitas
     .filter((r) => !["reembolsado", "chargeback", "cancelado"].includes(r.status))
     .reduce((s, r) => s + Number(r.valor_liquido), 0);
   const receitasTransacoes = transacoes
     .filter((t) => t.tipo === "receita")
     .reduce((s, t) => s + Number(t.valor), 0);
-  // Meta: faturamento líquido (bruto - reembolsos) menos o que foi investido em ads
-  const metaLiq = meta ? Math.max(0, meta.faturamento_liquido - meta.gasto_total) : 0;
-  const totalReceita = receitasBaixadas + receitasTransacoes + metaLiq;
+  const metaReceita = meta?.faturamento_liquido ?? 0; // bruto - reembolsos
+  const totalReceita = receitasBaixadas + receitasTransacoes + metaReceita;
 
-  // Despesas: previsto (tudo lançado, excl. cancelada) vs realizado (paga)
+  // Despesas: transações + gasto Meta Ads (puxado automaticamente, igual à receita)
+  const metaGasto = meta?.gasto_total ?? 0;
   const despesasPrevistas = transacoes
     .filter((t) => t.tipo === "despesa")
-    .reduce((s, t) => s + Number(t.valor), 0);
+    .reduce((s, t) => s + Number(t.valor), 0) + metaGasto;
   const despesasRealizadas = transacoes
     .filter((t) => t.tipo === "despesa" && t.status === "paga")
-    .reduce((s, t) => s + Number(t.valor), 0);
+    .reduce((s, t) => s + Number(t.valor), 0) + metaGasto;
 
   const resultado = totalReceita - despesasRealizadas;
 
@@ -156,7 +155,7 @@ export default async function DashboardPage({
           <div className="text-2xl font-bold text-white">{formatBRL(totalReceita)}</div>
           <div className="text-xs text-gray-500 mt-1">
             Baixas {formatBRL(receitasBaixadas + receitasTransacoes)}
-            {metaLiq > 0 && <> · Meta {formatBRL(metaLiq)}</>}
+            {metaReceita > 0 && <> · Meta {formatBRL(metaReceita)}</>}
           </div>
         </Link>
 
@@ -174,6 +173,7 @@ export default async function DashboardPage({
           <div className="text-2xl font-bold text-rose-300">{formatBRL(despesasRealizadas)}</div>
           <div className="text-xs text-gray-500 mt-1">
             Pago · Previsto {formatBRL(despesasPrevistas)}
+            {metaGasto > 0 && <> · Meta {formatBRL(metaGasto)}</>}
           </div>
           {despesasPrevistas > despesasRealizadas && (
             <div className="text-xs text-amber-400 mt-1">
@@ -203,34 +203,41 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* Meta Ads — só faturamento líquido */}
-      {meta && metaLiq > 0 && (
+      {/* Meta Ads — detalhamento (receita líq. + gasto já incluídos nos cards acima) */}
+      {meta && (meta.faturamento_liquido > 0 || meta.gasto_total > 0) && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Megaphone className="w-4 h-4 text-blue-400 shrink-0" />
             <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide">
-                Meta Ads — faturamento líquido ({periodoLabel})
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
+                Meta Ads ({periodoLabel})
               </div>
-              <div className="text-lg font-bold text-emerald-300 mt-0.5">
-                {formatBRL(metaLiq)}
-              </div>
-              <div className="text-[10px] text-gray-500 mt-0.5">
-                Bruto {formatBRL(meta.faturamento_bruto)} − Reembolsos {formatBRL(meta.reembolsos)} − Investido {formatBRL(meta.gasto_total)}
+              <div className="flex gap-4 text-sm">
+                <span>
+                  <span className="text-gray-500 text-[11px]">Receita líq. </span>
+                  <span className="font-semibold text-emerald-300">{formatBRL(metaReceita)}</span>
+                </span>
+                <span>
+                  <span className="text-gray-500 text-[11px]">Investido </span>
+                  <span className="font-semibold text-rose-300">{formatBRL(meta.gasto_total)}</span>
+                </span>
+                {meta.reembolsos > 0 && (
+                  <span>
+                    <span className="text-gray-500 text-[11px]">Reembolsos </span>
+                    <span className="font-semibold text-amber-300">{formatBRL(meta.reembolsos)}</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <a
-              href="https://brunotropolis.github.io/meta-ads-dashboard/"
-              target="_blank"
-              rel="noopener"
-              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
-            >
-              Ver dashboard <ExternalLink className="w-3 h-3" />
-            </a>
-            {periodo === "1m" && <MetaSyncButton />}
-          </div>
+          <a
+            href="https://brunotropolis.github.io/meta-ads-dashboard/"
+            target="_blank"
+            rel="noopener"
+            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
+          >
+            Ver dashboard <ExternalLink className="w-3 h-3" />
+          </a>
         </div>
       )}
 
