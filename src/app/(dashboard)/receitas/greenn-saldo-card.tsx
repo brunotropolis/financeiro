@@ -82,7 +82,7 @@ export function GreennSaldoCard({ saldo: initial }: { saldo: Saldo | null }) {
   );
 }
 
-function SaldoModal({
+export function SaldoModal({
   onClose,
   onSaved,
 }: {

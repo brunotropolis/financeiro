@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Entidade, OrigemReceita, OrigemReceitaRow, ReceitaBruta, StatusReceita } from "@/lib/types/database";
 import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
-import { GreennSaldoCard } from "./greenn-saldo-card";
+import { SaldoModal } from "./greenn-saldo-card";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +58,7 @@ export function ReceitasClient({
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   origens: OrigemReceitaRow[];
-  periodo: "atual" | "proximos" | "anteriores";
+  periodo: "atual" | "proximos" | "personalizado";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   metaFatLiquido: number;
   greennPendente: number;
@@ -65,6 +66,7 @@ export function ReceitasClient({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
   const [filtroOrigem, setFiltroOrigem] = useState<string>("todas");
+  const [greennModalOpen, setGreennModalOpen] = useState(false);
 
   // Mapa slug → row (pra renderizar nome/cor das receitas existentes pelo slug)
   const origemBySlug = useMemo(() => {
@@ -98,11 +100,14 @@ export function ReceitasClient({
     return { faturamento, recebido, aReceber, manualRecebido, manualAReceber };
   }, [receitas, metaFatLiquido, greennPendente]);
 
-  const periodoLabel = periodo === "proximos" ? "próximos" : periodo === "anteriores" ? "anteriores" : "mês";
+  const periodoLabel =
+    periodo === "proximos" ? "próximos meses" :
+    periodo === "personalizado" ? "período" :
+    "mês";
   const labelLista =
     periodo === "atual" ? "mês atual" :
     periodo === "proximos" ? "previstas para os próximos meses" :
-    "últimos 90 dias (antes deste mês)";
+    "período selecionado";
 
   return (
     <div>
@@ -135,12 +140,9 @@ export function ReceitasClient({
           label="A receber"
           value={formatBRL(stats.aReceber)}
           highlight="amber"
-          hint={greennPendente > 0 ? `inclui R$ ${greennPendente.toFixed(2).replace(".", ",")} pendente no Greenn` : undefined}
+          hint={greennPendente > 0 ? `inclui R$ ${greennPendente.toFixed(2).replace(".", ",")} ainda na Greenn` : undefined}
         />
       </div>
-
-      {/* Saldo Greenn (cole print → Claude Vision extrai) */}
-      <GreennSaldoCard saldo={saldoGreenn} />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={filtroOrigem} onValueChange={setFiltroOrigem}>
@@ -155,41 +157,49 @@ export function ReceitasClient({
         </span>
       </div>
 
-      {filtradas.length === 0 ? (
-        <EmptyState
-          icon={TrendingUp}
-          titulo="Nenhuma receita"
-          descricao="Lança publi, palestra ou recebimento manual. Greenn alimenta automaticamente quando integrarmos o webhook."
-          acao={entidades.length > 0 && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="w-4 h-4" /> Criar</Button>}
-        />
-      ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
+            <tr>
+              <th className="text-left px-4 py-3">Origem</th>
+              <th className="text-left px-4 py-3">Produto/Cliente</th>
+              <th className="text-right px-4 py-3">Faturamento</th>
+              <th className="text-right px-4 py-3">Recebido</th>
+              <th className="text-right px-4 py-3">A receber</th>
+              <th className="text-left px-4 py-3">Prev. pgto</th>
+              <th className="text-right px-4 py-3 w-24">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-800">
+            {/* Linha fixa Greenn: sempre primeira, snapshot do saldo pendente */}
+            {(filtroOrigem === "todas" || filtroOrigem === "greenn") && (
+              <GreennRow
+                saldo={saldoGreenn}
+                origem={origemBySlug.get("greenn")}
+                onAtualizar={() => setGreennModalOpen(true)}
+              />
+            )}
+
+            {filtradas.map((r) => (
+              <Row
+                key={r.id}
+                rec={r}
+                entidade={entidades.find((e) => e.id === r.entidade_id)}
+                origem={origemBySlug.get(r.origem)}
+                onEdit={() => { setEditing(r); setOpen(true); }}
+              />
+            ))}
+
+            {filtradas.length === 0 && (filtroOrigem !== "todas" && filtroOrigem !== "greenn") && (
               <tr>
-                <th className="text-left px-4 py-3">Origem</th>
-                <th className="text-left px-4 py-3">Produto/Cliente</th>
-                <th className="text-right px-4 py-3">Faturamento</th>
-                <th className="text-right px-4 py-3">Recebido</th>
-                <th className="text-right px-4 py-3">A receber</th>
-                <th className="text-left px-4 py-3">Prev. pgto</th>
-                <th className="text-right px-4 py-3 w-24">Ações</th>
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                  Nenhuma receita lançada neste período. Clica em &quot;Lançar receita&quot; pra adicionar.
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {filtradas.map((r) => (
-                <Row
-                  key={r.id}
-                  rec={r}
-                  entidade={entidades.find((e) => e.id === r.entidade_id)}
-                  origem={origemBySlug.get(r.origem)}
-                  onEdit={() => { setEditing(r); setOpen(true); }}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <ReceitaFormDialog
         open={open}
@@ -199,7 +209,86 @@ export function ReceitasClient({
         origens={origens}
         onSaved={() => setOpen(false)}
       />
+
+      {greennModalOpen && (
+        <SaldoModal
+          onClose={() => setGreennModalOpen(false)}
+          onSaved={() => setGreennModalOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function GreennRow({
+  saldo,
+  origem,
+  onAtualizar,
+}: {
+  saldo: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
+  origem?: OrigemReceitaRow;
+  onAtualizar: () => void;
+}) {
+  const pendente = Number(saldo?.pendente ?? 0);
+  const disponivel = Number(saldo?.disponivel ?? 0);
+  const antecipavel = Number(saldo?.antecipavel ?? 0);
+  const total = pendente + disponivel; // tudo que ainda está na Greenn
+
+  function tempoRel(iso: string): string {
+    const d = new Date(iso);
+    const diff = Date.now() - d.getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 60) return min <= 1 ? "agora" : `${min}min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  }
+
+  return (
+    <tr className="bg-emerald-950/20 hover:bg-emerald-950/30">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: origem?.cor_hex ?? "#10b981" }} />
+          <span className="text-sm font-semibold text-emerald-300">{origem?.nome ?? "Greenn"}</span>
+          <span className="text-[10px] uppercase tracking-wide bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded">Fixo</span>
+        </div>
+        <div className="text-[10px] text-gray-500 mt-0.5 ml-4">
+          {saldo ? `atualizado há ${tempoRel(saldo.capturado_em)}` : "nunca capturado"}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="text-sm font-medium text-white">Saldo Greenn em aberto</div>
+        <div className="text-xs text-gray-500">
+          {saldo ? (
+            <>
+              Disp. {formatBRL(disponivel)} · Pend. {formatBRL(pendente)}
+              {antecipavel > 0 && <> · Antec. {formatBRL(antecipavel)}</>}
+            </>
+          ) : (
+            "cole um print pra começar"
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">
+        {saldo ? formatBRL(total) : "—"}
+      </td>
+      <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
+        <span className="text-gray-700">—</span>
+      </td>
+      <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
+        {saldo && total > 0 ? <span className="text-amber-300">{formatBRL(total)}</span> : <span className="text-gray-700">—</span>}
+      </td>
+      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+        <span className="text-[11px]">snapshot atual</span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex justify-end">
+          <Button variant="ghost" size="icon" onClick={onAtualizar} title="Atualizar saldo (cole print)">
+            <RefreshCw className="w-4 h-4 text-emerald-400" />
+          </Button>
+        </div>
+      </td>
+    </tr>
   );
 }
 

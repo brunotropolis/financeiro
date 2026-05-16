@@ -5,9 +5,9 @@ import { ReceitasClient } from "./receitas-client";
 
 export const dynamic = "force-dynamic";
 
-type Periodo = "atual" | "proximos" | "anteriores";
+type Periodo = "atual" | "proximos" | "personalizado";
 
-function getRange(p: Periodo): { col: "data_venda" | "data_prevista_pagamento"; gte?: string; lte?: string; lt?: string } {
+function getRange(p: Periodo, inicio?: string, fim?: string): { col: "data_venda" | "data_prevista_pagamento"; gte?: string; lte?: string; lt?: string } {
   const now = new Date();
   const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
@@ -16,24 +16,24 @@ function getRange(p: Periodo): { col: "data_venda" | "data_prevista_pagamento"; 
     // Próximos meses: previsões com data_prevista_pagamento > fim do mês atual
     return { col: "data_prevista_pagamento", gte: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10) };
   }
-  if (p === "anteriores") {
-    // Meses anteriores: data_venda antes do início do mês atual (últimos 90d)
-    const limite = new Date();
-    limite.setDate(limite.getDate() - 90);
-    return { col: "data_venda", gte: limite.toISOString().slice(0, 10), lt: inicioMes };
+  if (p === "personalizado" && inicio && fim) {
+    return { col: "data_venda", gte: inicio, lte: fim };
   }
-  // atual
+  // atual (default)
   return { col: "data_venda", gte: inicioMes, lte: fimMes };
 }
 
 export default async function ReceitasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string }>;
+  searchParams: Promise<{ p?: string; inicio?: string; fim?: string }>;
 }) {
   const params = await searchParams;
-  const periodo: Periodo = params.p === "proximos" || params.p === "anteriores" ? params.p : "atual";
-  const range = getRange(periodo);
+  const periodo: Periodo =
+    params.p === "proximos" ? "proximos" :
+    params.p === "personalizado" ? "personalizado" :
+    "atual";
+  const range = getRange(periodo, params.inicio, params.fim);
 
   const db = await dbServer();
   let query = db.from("receitas_brutas").select("*").order("data_venda", { ascending: false }).limit(500);
@@ -62,8 +62,8 @@ export default async function ReceitasPage({
 
   // Faturamento Meta líquido (bruto - reembolsos) — só conta no filtro "atual"
   const metaFatLiquido = meta?.faturamento_liquido ?? 0;
-  // Saldo Greenn pendente — sempre disponível (não depende de filtro)
-  const greennPendente = saldoGreenn?.pendente ?? 0;
+  // Saldo Greenn ainda na plataforma — pendente + disponível (ambos ainda não caíram em conta)
+  const greennPendente = (saldoGreenn?.pendente ?? 0) + (saldoGreenn?.disponivel ?? 0);
 
   return (
     <ReceitasClient
