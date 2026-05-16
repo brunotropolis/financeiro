@@ -88,15 +88,21 @@ export default async function DashboardPage({
   // Saldo atual das contas (sempre atual, não filtra por período)
   const saldoTotal = contas.reduce((s, c) => s + Number(c.saldo_atual), 0);
 
-  // Receitas: baixas em receitas_brutas + receitas em transacoes + Meta faturamento_liquido (bruto - reembolsos)
-  const receitasBaixadas = receitas
-    .filter((r) => !["reembolsado", "chargeback", "cancelado"].includes(r.status))
+  // Receitas EFETIVAS (já em caixa) — só status=recebido. Não inclui "a receber" (que é
+  // Greenn pendente, ainda não caiu) nem Meta API (que é faturamento bruto Greenn,
+  // double count com receitas_brutas).
+  const receitasRecebidas = receitas
+    .filter((r) => r.status === "recebido")
     .reduce((s, r) => s + Number(r.valor_liquido), 0);
   const receitasTransacoes = transacoes
     .filter((t) => t.tipo === "receita")
     .reduce((s, t) => s + Number(t.valor), 0);
-  const metaReceita = meta?.faturamento_liquido ?? 0; // bruto - reembolsos
-  const totalReceita = receitasBaixadas + receitasTransacoes + metaReceita;
+  const totalReceita = receitasRecebidas + receitasTransacoes;
+
+  // A receber (vai cair no caixa nos próximos meses)
+  const totalAReceber = receitas
+    .filter((r) => !["recebido", "reembolsado", "chargeback", "cancelado"].includes(r.status))
+    .reduce((s, r) => s + Number(r.valor_liquido), 0);
 
   // Despesas: transações + gasto Meta Ads (puxado automaticamente, igual à receita)
   const metaGasto = meta?.gasto_total ?? 0;
@@ -155,8 +161,8 @@ export default async function DashboardPage({
           </div>
           <div className="text-2xl font-bold text-white">{formatBRL(totalReceita)}</div>
           <div className="text-xs text-gray-500 mt-1">
-            Baixas {formatBRL(receitasBaixadas + receitasTransacoes)}
-            {metaReceita > 0 && <> · Meta {formatBRL(metaReceita)}</>}
+            Já em caixa
+            {totalAReceber > 0 && <> · <span className="text-amber-400">{formatBRL(totalAReceber)} a receber</span></>}
           </div>
         </Link>
 
@@ -216,7 +222,7 @@ export default async function DashboardPage({
               <div className="flex gap-4 text-sm">
                 <span>
                   <span className="text-gray-500 text-[11px]">Receita líq. </span>
-                  <span className="font-semibold text-emerald-300">{formatBRL(metaReceita)}</span>
+                  <span className="font-semibold text-emerald-300">{formatBRL(meta.faturamento_liquido)}</span>
                 </span>
                 <span>
                   <span className="text-gray-500 text-[11px]">Investido </span>

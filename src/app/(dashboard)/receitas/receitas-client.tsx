@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Entidade, OrigemReceita, ReceitaBruta, StatusReceita } from "@/lib/types/database";
-import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle, Megaphone, ExternalLink } from "lucide-react";
+import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
 import { GreennSaldoCard } from "./greenn-saldo-card";
-import { FaturamentoMesCard } from "./faturamento-mes-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,16 +62,12 @@ export function ReceitasClient({
   receitas,
   entidades,
   periodo,
-  metaLiquido,
   saldoGreenn,
-  receitasDoMes,
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   periodo: "atual" | "proximos" | "anteriores";
-  metaLiquido: number;
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
-  receitasDoMes: Array<{ origem: string; valor_liquido: number; status: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
@@ -117,41 +112,14 @@ export function ReceitasClient({
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        <Stat label={`Bruto (${periodoLabel})`} value={formatBRL(stats.bruto)} />
-        <Stat label={`Líquido (${periodoLabel})`} value={formatBRL(stats.liquido)} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <Stat label={`Faturamento do ${periodoLabel}`} value={formatBRL(stats.liquido)} />
         <Stat label="Recebido" value={formatBRL(stats.recebido)} highlight="emerald" />
         <Stat label="A receber" value={formatBRL(stats.aReceber)} highlight="amber" />
       </div>
 
       {/* Saldo Greenn (cole print → Claude Vision extrai) */}
       <GreennSaldoCard saldo={saldoGreenn} />
-
-      {/* Faturamento do mês — agregado por origem */}
-      <FaturamentoMesCard receitas={receitasDoMes} />
-
-      {/* Card fixo: Meta Ads líquido do mês corrente (só o valor que importa pro caixa) */}
-      {metaLiquido > 0 && (
-        <div className="bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border border-blue-900/50 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Megaphone className="w-5 h-5 text-blue-400 shrink-0" />
-            <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide">
-                Meta Ads — faturamento líquido (mês atual)
-              </div>
-              <div className="text-2xl font-bold text-emerald-300 mt-0.5">{formatBRL(metaLiquido)}</div>
-            </div>
-          </div>
-          <a
-            href="https://brunotropolis.github.io/meta-ads-dashboard/"
-            target="_blank"
-            rel="noopener"
-            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
-          >
-            Ver dashboard <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={filtroOrigem} onValueChange={(v) => setFiltroOrigem(v as typeof filtroOrigem)}>
@@ -178,13 +146,12 @@ export function ReceitasClient({
           <table className="w-full">
             <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
               <tr>
-                <th className="text-left px-4 py-3">Previsão</th>
-                <th className="text-left px-4 py-3">Recebimento</th>
-                <th className="text-left px-4 py-3">Produto/Cliente</th>
                 <th className="text-left px-4 py-3">Origem</th>
-                <th className="text-right px-4 py-3">Valor</th>
-                <th className="text-right px-4 py-3">Líquido</th>
-                <th className="text-center px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Produto/Cliente</th>
+                <th className="text-right px-4 py-3">Faturamento</th>
+                <th className="text-right px-4 py-3">Recebido</th>
+                <th className="text-right px-4 py-3">A receber</th>
+                <th className="text-left px-4 py-3">Prev. pgto</th>
                 <th className="text-right px-4 py-3 w-24">Ações</th>
               </tr>
             </thead>
@@ -243,29 +210,46 @@ function Row({ rec, entidade, onEdit }: { rec: ReceitaBruta; entidade?: EntLite;
     });
   }
 
-  const status = STATUS.find((s) => s.value === rec.status);
-  const StatusIcon = rec.status === "recebido" ? CheckCircle2 : rec.status === "atrasado" || rec.status === "chargeback" || rec.status === "reembolsado" ? AlertCircle : Clock;
+  const isRecebido = rec.status === "recebido";
+  const isCancelado = ["reembolsado", "chargeback", "cancelado"].includes(rec.status);
+  const valor = Number(rec.valor_liquido);
+  const StatusIcon = isRecebido ? CheckCircle2 : isCancelado ? AlertCircle : Clock;
+  const statusInfo = STATUS.find((s) => s.value === rec.status);
 
   return (
-    <tr className="hover:bg-gray-800/30">
-      <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">{rec.data_prevista_pagamento ? formatDate(rec.data_prevista_pagamento) : <span className="text-gray-600">—</span>}</td>
-      <td className="px-4 py-3 text-sm text-gray-300 whitespace-nowrap">{rec.data_recebimento ? formatDate(rec.data_recebimento) : <span className="text-gray-600">—</span>}</td>
+    <tr className={`hover:bg-gray-800/30 ${isCancelado ? "opacity-50" : ""}`}>
       <td className="px-4 py-3">
-        <div className="text-sm font-medium text-white">{rec.produto_nome ?? "—"}</div>
-        <div className="text-xs text-gray-500">
+        <div className="text-sm text-gray-300">
+          {ORIGENS.find((o) => o.value === rec.origem)?.label ?? rec.origem}
+        </div>
+        <div className="text-[10px] text-gray-500 mt-0.5">
+          {formatDate(rec.data_venda)}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          <StatusIcon className={`w-3 h-3 shrink-0 ${isRecebido ? "text-emerald-400" : isCancelado ? "text-rose-400" : "text-amber-400"}`} />
+          <span className="text-sm font-medium text-white truncate" title={statusInfo?.label}>{rec.produto_nome ?? "—"}</span>
+        </div>
+        <div className="text-xs text-gray-500 ml-4.5">
           {rec.cliente_nome ?? entidade?.nome ?? ""}
         </div>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-400">
-        {ORIGENS.find((o) => o.value === rec.origem)?.label ?? rec.origem}
+      <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">{formatBRL(valor)}</td>
+      <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
+        {isRecebido ? <span className="text-emerald-300">{formatBRL(valor)}</span> : <span className="text-gray-700">—</span>}
       </td>
-      <td className="px-4 py-3 text-right text-sm font-mono text-gray-300 whitespace-nowrap">{formatBRL(rec.valor_bruto)}</td>
-      <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">{formatBRL(rec.valor_liquido)}</td>
-      <td className="px-4 py-3 text-center">
-        <span className={"inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md font-medium " + (status?.cls ?? "")}>
-          <StatusIcon className="w-3 h-3" />
-          {status?.label ?? rec.status}
-        </span>
+      <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
+        {!isRecebido && !isCancelado ? <span className="text-amber-300">{formatBRL(valor)}</span> : <span className="text-gray-700">—</span>}
+      </td>
+      <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
+        {isRecebido && rec.data_recebimento ? (
+          <span title="Recebido em">{formatDate(rec.data_recebimento)}</span>
+        ) : rec.data_prevista_pagamento ? (
+          <span title="Previsão">{formatDate(rec.data_prevista_pagamento)}</span>
+        ) : (
+          <span className="text-gray-600">—</span>
+        )}
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-1">

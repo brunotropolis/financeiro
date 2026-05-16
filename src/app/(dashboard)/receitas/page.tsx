@@ -1,6 +1,5 @@
 import { dbServer } from "@/lib/supabase/db";
 import type { Entidade, ReceitaBruta } from "@/lib/types/database";
-import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import { ReceitasClient } from "./receitas-client";
 
 export const dynamic = "force-dynamic";
@@ -41,25 +40,12 @@ export default async function ReceitasPage({
   if (range.lte) query = query.lte(range.col, range.lte);
   if (range.lt) query = query.lt(range.col, range.lt);
 
-  const metaPromise = fetchMetaAdsResumo("mes");
-
-  // Faturamento do mês corrente (sempre mês atual, independente do filtro acima)
-  const now = new Date();
-  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
-
-  const [recRes, entRes, saldoRes, fatRes] = await Promise.all([
+  const [recRes, entRes, saldoRes] = await Promise.all([
     query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
     db.from("greenn_saldos").select("*").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
-    db
-      .from("receitas_brutas")
-      .select("origem,valor_liquido,status,data_venda,data_prevista_pagamento")
-      .gte("data_venda", inicioMes)
-      .lte("data_venda", fimMes),
   ]);
 
-  const meta = await metaPromise;
   const saldoGreenn = (saldoRes.data ?? null) as {
     disponivel: number;
     pendente: number;
@@ -67,22 +53,12 @@ export default async function ReceitasPage({
     capturado_em: string;
   } | null;
 
-  const receitasDoMes = (fatRes.data ?? []) as Array<{
-    origem: string;
-    valor_liquido: number;
-    status: string;
-    data_venda: string;
-    data_prevista_pagamento: string | null;
-  }>;
-
   return (
     <ReceitasClient
       receitas={(recRes.data ?? []) as ReceitaBruta[]}
       entidades={(entRes.data ?? []) as Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">[]}
       periodo={periodo}
-      metaLiquido={meta?.faturamento_liquido ?? 0}
       saldoGreenn={saldoGreenn}
-      receitasDoMes={receitasDoMes}
     />
   );
 }
