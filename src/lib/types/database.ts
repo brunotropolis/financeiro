@@ -45,6 +45,7 @@ export type OrigemReceita =
   | "amazon_aff"
   | "shopee_aff"
   | "ml_aff"
+  | "magalu_aff"
   | "publi"
   | "adsense"
   | "palestra"

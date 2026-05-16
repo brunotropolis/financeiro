@@ -28,6 +28,7 @@ const ORIGENS: { value: OrigemReceita; label: string }[] = [
   { value: "amazon_aff", label: "Amazon afiliados" },
   { value: "shopee_aff", label: "Shopee afiliados" },
   { value: "ml_aff", label: "ML afiliados" },
+  { value: "magalu_aff", label: "Magalu afiliados" },
   { value: "outro", label: "Outro" },
 ];
 
