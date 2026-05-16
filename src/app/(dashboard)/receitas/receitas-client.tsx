@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Entidade, OrigemReceita, ReceitaBruta, StatusReceita } from "@/lib/types/database";
-import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle, Megaphone, ExternalLink } from "lucide-react";
+import { PeriodoFilter } from "./periodo-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,9 +60,17 @@ const STATUS_MANUAIS: { value: StatusReceita; label: string }[] = [
 export function ReceitasClient({
   receitas,
   entidades,
+  periodo,
+  metaLiquido,
+  metaBruto,
+  metaReembolsos,
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
+  periodo: "atual" | "proximos" | "anteriores";
+  metaLiquido: number;
+  metaBruto: number;
+  metaReembolsos: number;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
@@ -73,13 +82,8 @@ export function ReceitasClient({
   );
 
   const stats = useMemo(() => {
-    const inicio = new Date();
-    inicio.setDate(1);
-    inicio.setHours(0, 0, 0, 0);
-    const inicioISO = inicio.toISOString().slice(0, 10);
     let bruto = 0, liquido = 0, recebido = 0, aReceber = 0;
     for (const r of receitas) {
-      if (r.data_venda < inicioISO) continue;
       bruto += Number(r.valor_bruto);
       liquido += Number(r.valor_liquido);
       if (r.status === "recebido") recebido += Number(r.valor_liquido);
@@ -90,24 +94,63 @@ export function ReceitasClient({
     return { bruto, liquido, recebido, aReceber };
   }, [receitas]);
 
+  const periodoLabel = periodo === "proximos" ? "próximos" : periodo === "anteriores" ? "anteriores" : "mês";
+  const labelLista =
+    periodo === "atual" ? "mês atual" :
+    periodo === "proximos" ? "previstas para os próximos meses" :
+    "últimos 90 dias (antes deste mês)";
+
   return (
     <div>
       <PageHeader
         titulo="Receitas"
         descricao="Faturamento bruto (Greenn, afiliados, publis, AdSense, palestras). Diferente do dinheiro em conta — esse fica em Movimentações."
         acao={
-          <Button onClick={() => { setEditing(null); setOpen(true); }} disabled={entidades.length === 0}>
-            <Plus className="w-4 h-4" /> Lançar receita
-          </Button>
+          <div className="flex items-center gap-3">
+            <PeriodoFilter current={periodo} />
+            <Button onClick={() => { setEditing(null); setOpen(true); }} disabled={entidades.length === 0}>
+              <Plus className="w-4 h-4" /> Lançar receita
+            </Button>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Stat label="Bruto (mês)" value={formatBRL(stats.bruto)} />
-        <Stat label="Líquido (mês)" value={formatBRL(stats.liquido)} />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <Stat label={`Bruto (${periodoLabel})`} value={formatBRL(stats.bruto)} />
+        <Stat label={`Líquido (${periodoLabel})`} value={formatBRL(stats.liquido)} />
         <Stat label="Recebido" value={formatBRL(stats.recebido)} highlight="emerald" />
         <Stat label="A receber" value={formatBRL(stats.aReceber)} highlight="amber" />
       </div>
+
+      {/* Card fixo: Meta Ads líquido do mês corrente (puxado automaticamente da API) */}
+      {metaLiquido > 0 && (
+        <div className="bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border border-blue-900/50 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Megaphone className="w-5 h-5 text-blue-400 shrink-0" />
+            <div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide">
+                Meta Ads — faturamento líquido (mês atual, fixo)
+              </div>
+              <div className="text-2xl font-bold text-emerald-300 mt-0.5">{formatBRL(metaLiquido)}</div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                Bruto {formatBRL(metaBruto)}
+                {metaReembolsos > 0 && (
+                  <> · <span className="text-rose-400">−{formatBRL(metaReembolsos)} reembolsos</span></>
+                )}
+                {" · puxado da Meta API"}
+              </div>
+            </div>
+          </div>
+          <a
+            href="https://brunotropolis.github.io/meta-ads-dashboard/"
+            target="_blank"
+            rel="noopener"
+            className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 shrink-0"
+          >
+            Ver dashboard <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={filtroOrigem} onValueChange={(v) => setFiltroOrigem(v as typeof filtroOrigem)}>
@@ -118,7 +161,7 @@ export function ReceitasClient({
           </SelectContent>
         </Select>
         <span className="text-xs text-gray-500 ml-auto">
-          {filtradas.length} receita{filtradas.length === 1 ? "" : "s"} (últimos 90 dias)
+          {filtradas.length} receita{filtradas.length === 1 ? "" : "s"} ({labelLista})
         </span>
       </div>
 
