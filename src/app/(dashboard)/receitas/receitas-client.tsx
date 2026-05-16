@@ -432,6 +432,7 @@ function ReceitaFormDialog({
   const [produto, setProduto] = useState("");
   const [cliente, setCliente] = useState("");
   const [valor, setValor] = useState("");
+  const [competenciaMes, setCompetenciaMes] = useState(""); // formato YYYY-MM
   const [dataPrev, setDataPrev] = useState("");
   const [dataReceb, setDataReceb] = useState("");
   const [status, setStatus] = useState<StatusReceita>("previsto");
@@ -447,6 +448,7 @@ function ReceitaFormDialog({
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
     setValor(receita ? formatBRLEditable(receita.valor_bruto) : "");
+    setCompetenciaMes(receita?.data_venda ? receita.data_venda.slice(0, 7) : new Date().toISOString().slice(0, 7));
     setDataPrev(receita?.data_prevista_pagamento ?? "");
     setDataReceb(receita?.data_recebimento ?? "");
     setStatus((receita?.status as StatusReceita) ?? "previsto");
@@ -491,8 +493,8 @@ function ReceitaFormDialog({
       taxas: 0, // impostos serão geridos em aba separada
       metodo_pagamento: "PIX",
       parcelas: 1,
-      // data_venda preenchida automaticamente: usa data_recebimento se houve, senão hoje
-      data_venda: dataReceb || receita?.data_venda || new Date().toISOString().slice(0, 10),
+      // data_venda = primeiro dia do mês de competência escolhido pelo usuário
+      data_venda: competenciaMes ? `${competenciaMes}-01` : (dataReceb || receita?.data_venda || new Date().toISOString().slice(0, 10)),
       data_prevista_pagamento: dataPrev || null,
       data_recebimento: dataReceb || null,
       status,
@@ -557,35 +559,55 @@ function ReceitaFormDialog({
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="valor">Valor (R$)</Label>
-            <Input
-              id="valor"
-              type="text"
-              inputMode="decimal"
-              value={valor}
-              onChange={(e) => setValor(maskBRLInput(e.target.value))}
-              onBlur={() => {
-                const n = parseBRL(valor);
-                if (n > 0) setValor(formatBRLEditable(n));
-              }}
-              required
-              placeholder="0,00"
-              className="mt-1.5 font-mono"
-            />
-            <p className="text-[11px] text-gray-500 mt-1">
-              Aceita 1234,56 ou 1.234,56 ou 1234.56. {valor && parseBRL(valor) > 0 && <>= <span className="text-emerald-400 font-mono">{formatBRL(parseBRL(valor))}</span></>}
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="comp">Competência (mês da venda)</Label>
+              <Input
+                id="comp"
+                type="month"
+                value={competenciaMes}
+                onChange={(e) => setCompetenciaMes(e.target.value)}
+                required
+                className="mt-1.5"
+              />
+              <p className="text-[11px] text-gray-500 mt-1">
+                Mês em que a venda aconteceu (ex: vendi em Abr/26, mesmo que caia em mai).
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="valor">Faturamento (R$)</Label>
+              <Input
+                id="valor"
+                type="text"
+                inputMode="decimal"
+                value={valor}
+                onChange={(e) => setValor(maskBRLInput(e.target.value))}
+                onBlur={() => {
+                  const n = parseBRL(valor);
+                  if (n > 0) setValor(formatBRLEditable(n));
+                }}
+                required
+                placeholder="0,00"
+                className="mt-1.5 font-mono"
+              />
+              <p className="text-[11px] text-gray-500 mt-1">
+                {valor && parseBRL(valor) > 0
+                  ? <>= <span className="text-emerald-400 font-mono">{formatBRL(parseBRL(valor))}</span></>
+                  : "Aceita 1234,56 ou 1.234,56"}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="dp">Previsão de pagamento</Label>
               <Input id="dp" type="date" value={dataPrev} onChange={(e) => setDataPrev(e.target.value)} className="mt-1.5" />
+              <p className="text-[11px] text-gray-500 mt-1">Quando o dinheiro deve cair na conta.</p>
             </div>
             <div>
               <Label htmlFor="dr">Data de recebimento</Label>
               <Input id="dr" type="date" value={dataReceb} onChange={(e) => setDataReceb(e.target.value)} className="mt-1.5" />
+              <p className="text-[11px] text-gray-500 mt-1">Preenche quando caiu.</p>
             </div>
             <div>
               <Label>Status</Label>
@@ -595,7 +617,7 @@ function ReceitaFormDialog({
                   {STATUS_MANUAIS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 mt-1">Auto: vira "Confirmado" se preencher recebimento.</p>
+              <p className="text-xs text-gray-500 mt-1">Auto: vira &quot;Confirmado&quot; se preencher recebimento.</p>
             </div>
           </div>
 
