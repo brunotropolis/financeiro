@@ -176,6 +176,7 @@ export function ReceitasClient({
               <GreennRow
                 saldo={saldoGreenn}
                 origem={origemBySlug.get("greenn")}
+                metaFatLiquido={metaFatLiquido}
                 onAtualizar={() => setGreennModalOpen(true)}
               />
             )}
@@ -223,16 +224,25 @@ export function ReceitasClient({
 function GreennRow({
   saldo,
   origem,
+  metaFatLiquido,
   onAtualizar,
 }: {
   saldo: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   origem?: OrigemReceitaRow;
+  metaFatLiquido: number;
   onAtualizar: () => void;
 }) {
   const pendente = Number(saldo?.pendente ?? 0);
   const disponivel = Number(saldo?.disponivel ?? 0);
   const antecipavel = Number(saldo?.antecipavel ?? 0);
-  const total = pendente + disponivel; // tudo que ainda está na Greenn
+
+  // Modelo:
+  // Faturamento (mês) = vem do Meta API (bruto - reembolsos)
+  // A receber       = pendente + disponível (ainda na Greenn, não saiu pra conta)
+  // Recebido        = Faturamento - A receber (parte que já saiu pra conta)
+  const aReceber = pendente + disponivel;
+  const faturamento = metaFatLiquido;
+  const recebido = Math.max(0, faturamento - aReceber);
 
   function tempoRel(iso: string): string {
     const d = new Date(iso);
@@ -253,11 +263,11 @@ function GreennRow({
           <span className="text-[10px] uppercase tracking-wide bg-emerald-900/50 text-emerald-300 px-1.5 py-0.5 rounded">Fixo</span>
         </div>
         <div className="text-[10px] text-gray-500 mt-0.5 ml-4">
-          {saldo ? `atualizado há ${tempoRel(saldo.capturado_em)}` : "nunca capturado"}
+          {saldo ? `saldo atualizado há ${tempoRel(saldo.capturado_em)}` : "saldo nunca capturado"}
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="text-sm font-medium text-white">Saldo Greenn em aberto</div>
+        <div className="text-sm font-medium text-white">Vendas Greenn — mês atual</div>
         <div className="text-xs text-gray-500">
           {saldo ? (
             <>
@@ -265,21 +275,21 @@ function GreennRow({
               {antecipavel > 0 && <> · Antec. {formatBRL(antecipavel)}</>}
             </>
           ) : (
-            "cole um print pra começar"
+            "atualize o saldo pra ver"
           )}
         </div>
       </td>
       <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">
-        {saldo ? formatBRL(total) : "—"}
+        {faturamento > 0 ? formatBRL(faturamento) : <span className="text-gray-700">—</span>}
       </td>
       <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
-        <span className="text-gray-700">—</span>
+        {recebido > 0 ? <span className="text-emerald-300">{formatBRL(recebido)}</span> : <span className="text-gray-700">—</span>}
       </td>
       <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
-        {saldo && total > 0 ? <span className="text-amber-300">{formatBRL(total)}</span> : <span className="text-gray-700">—</span>}
+        {aReceber > 0 ? <span className="text-amber-300">{formatBRL(aReceber)}</span> : <span className="text-gray-700">—</span>}
       </td>
       <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-        <span className="text-[11px]">snapshot atual</span>
+        <span className="text-[11px]">atualiza mensal</span>
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end">
