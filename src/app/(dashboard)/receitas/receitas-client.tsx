@@ -13,7 +13,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatBRL, formatDate } from "@/lib/formatters";
+import { formatBRL, formatDate, parseBRL, formatBRLEditable, maskBRLInput } from "@/lib/formatters";
 import { salvarReceita, deletarReceita, marcarReceitaRecebida, type ReceitaInput } from "./actions";
 
 type EntLite = Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">;
@@ -311,8 +311,7 @@ function ReceitaFormDialog({
   const [origem, setOrigem] = useState<OrigemReceita>("publi");
   const [produto, setProduto] = useState("");
   const [cliente, setCliente] = useState("");
-  const [valor, setValor] = useState("0");
-  const [imposto, setImposto] = useState("0");
+  const [valor, setValor] = useState("");
   const [dataPrev, setDataPrev] = useState("");
   const [dataReceb, setDataReceb] = useState("");
   const [status, setStatus] = useState<StatusReceita>("previsto");
@@ -324,8 +323,7 @@ function ReceitaFormDialog({
     setOrigem((receita?.origem as OrigemReceita) ?? "publi");
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
-    setValor(receita ? String(receita.valor_bruto) : "0");
-    setImposto(receita ? String(receita.taxas) : "0");
+    setValor(receita ? formatBRLEditable(receita.valor_bruto) : "");
     setDataPrev(receita?.data_prevista_pagamento ?? "");
     setDataReceb(receita?.data_recebimento ?? "");
     setStatus((receita?.status as StatusReceita) ?? "previsto");
@@ -347,8 +345,7 @@ function ReceitaFormDialog({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
-    const v = parseFloat(valor.replace(",", "."));
-    const t = parseFloat(imposto.replace(",", ".")) || 0;
+    const v = parseBRL(valor);
     if (!v || v <= 0) return setErro("Valor deve ser maior que zero.");
     if (!entidadeId) return setErro("Selecione uma entidade.");
 
@@ -358,7 +355,7 @@ function ReceitaFormDialog({
       produto_nome: produto,
       cliente_nome: cliente,
       valor_bruto: v,
-      taxas: t,
+      taxas: 0, // impostos serão geridos em aba separada
       metodo_pagamento: "PIX",
       parcelas: 1,
       // data_venda preenchida automaticamente: usa data_recebimento se houve, senão hoje
@@ -376,10 +373,6 @@ function ReceitaFormDialog({
       else onSaved();
     });
   }
-
-  const valorNum = parseFloat(valor.replace(",", ".")) || 0;
-  const impostoNum = parseFloat(imposto.replace(",", ".")) || 0;
-  const liquidoCalc = valorNum - impostoNum;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -421,22 +414,25 @@ function ReceitaFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="valor">Valor (R$)</Label>
-              <Input id="valor" type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} required className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="imposto">Imposto (R$)</Label>
-              <Input id="imposto" type="number" step="0.01" value={imposto} onChange={(e) => setImposto(e.target.value)} className="mt-1.5" />
-              <p className="text-xs text-gray-500 mt-1">Opcional — IR retido na nota.</p>
-            </div>
-            <div>
-              <Label>Líquido</Label>
-              <div className="mt-1.5 h-10 px-3 flex items-center font-mono text-emerald-300 bg-gray-800 rounded-lg border border-gray-700">
-                {formatBRL(liquidoCalc)}
-              </div>
-            </div>
+          <div>
+            <Label htmlFor="valor">Valor (R$)</Label>
+            <Input
+              id="valor"
+              type="text"
+              inputMode="decimal"
+              value={valor}
+              onChange={(e) => setValor(maskBRLInput(e.target.value))}
+              onBlur={() => {
+                const n = parseBRL(valor);
+                if (n > 0) setValor(formatBRLEditable(n));
+              }}
+              required
+              placeholder="0,00"
+              className="mt-1.5 font-mono"
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Aceita 1234,56 ou 1.234,56 ou 1234.56. {valor && parseBRL(valor) > 0 && <>= <span className="text-emerald-400 font-mono">{formatBRL(parseBRL(valor))}</span></>}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
