@@ -103,8 +103,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Cria/atualiza receita "guarda-chuva" Greenn em aberto (a receber)
-    // pendente + antecipável = total a receber (disponível já pode ser sacado)
-    const valorAReceber = pendente + antecipavel;
+    // pendente = total a receber (antecipável é um SUBSET do pendente — fração que
+    // pode ser antecipada mediante taxa, então NÃO soma). Disponível já pode ser sacado.
+    const valorAReceber = pendente;
     const hoje = new Date().toISOString().slice(0, 10);
 
     // Acha entidade Dream Baby (recebe Greenn) — fallback: primeira entidade ativa
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
         .eq("transaction_id_externo", TX_ID)
         .maybeSingle();
 
-      const notas = `Atualizado via print Greenn. Disponível R$ ${disponivel.toFixed(2)} (já liberado), Pendente R$ ${pendente.toFixed(2)}, Antecipável R$ ${antecipavel.toFixed(2)}.`;
+      const notas = `Atualizado via print Greenn. Pendente (a receber) R$ ${pendente.toFixed(2)}, dos quais R$ ${antecipavel.toFixed(2)} são antecipáveis. Disponível pra saque imediato: R$ ${disponivel.toFixed(2)}.`;
 
       if (existing) {
         await supabase

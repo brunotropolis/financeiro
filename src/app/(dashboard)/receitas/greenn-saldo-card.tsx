@@ -48,21 +48,18 @@ export function GreennSaldoCard({ saldo: initial }: { saldo: Saldo | null }) {
         </div>
 
         {saldo ? (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div>
               <div className="text-[10px] text-gray-400 uppercase tracking-wide">Disponível</div>
               <div className="text-xl font-bold text-emerald-300 mt-0.5">{formatBRL(saldo.disponivel)}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">liberado pra saque</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">liberado pra saque imediato</div>
             </div>
             <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide">Pendente</div>
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide">A receber (pendente)</div>
               <div className="text-xl font-bold text-amber-300 mt-0.5">{formatBRL(saldo.pendente)}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">provisionado / em aberto</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide">Antecipável</div>
-              <div className="text-xl font-bold text-cyan-300 mt-0.5">{formatBRL(saldo.antecipavel)}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">pode antecipar com taxa</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">
+                R$ {saldo.antecipavel.toFixed(2).replace(".", ",")} podem ser antecipados com taxa
+              </div>
             </div>
           </div>
         ) : (
