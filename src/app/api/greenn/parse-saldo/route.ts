@@ -114,11 +114,20 @@ export async function POST(req: NextRequest) {
       .eq("nome", "Dream Baby")
       .eq("ativo", true)
       .maybeSingle();
-    const { data: entFallback } = entDream
-      ? { data: entDream }
-      : await supabase.from("entidades").select("id").eq("ativo", true).order("ordem").limit(1).maybeSingle();
 
-    if (entFallback?.id) {
+    let entId: string | null = (entDream as { id?: string } | null)?.id ?? null;
+    if (!entId) {
+      const { data: entFirst } = await supabase
+        .from("entidades")
+        .select("id")
+        .eq("ativo", true)
+        .order("ordem")
+        .limit(1)
+        .maybeSingle();
+      entId = (entFirst as { id?: string } | null)?.id ?? null;
+    }
+
+    if (entId) {
       // Procura "guarda-chuva" existente (não recebida ainda) via transaction_id_externo fixo
       const TX_ID = "GREENN_SALDO_ABERTO";
       const { data: existing } = await supabase
@@ -140,7 +149,7 @@ export async function POST(req: NextRequest) {
             status: valorAReceber > 0 ? "previsto" : "recebido",
             updated_by: userResp.user.id,
           } as never)
-          .eq("id", (existing as { id: string }).id);
+          .eq("id", (existing as { id: string } | null)?.id ?? "");
       } else if (valorAReceber > 0) {
         await supabase.from("receitas_brutas").insert({
           origem: "greenn",
@@ -153,7 +162,7 @@ export async function POST(req: NextRequest) {
           parcelas: 1,
           data_venda: hoje,
           status: "previsto",
-          entidade_id: (entFallback as { id: string }).id,
+          entidade_id: entId,
           notas,
           created_by: userResp.user.id,
         } as never);
