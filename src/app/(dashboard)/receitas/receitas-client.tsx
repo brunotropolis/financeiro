@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Entidade, OrigemReceita, ReceitaBruta, StatusReceita } from "@/lib/types/database";
 import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle, Megaphone, ExternalLink } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
+import { GreennSaldoCard } from "./greenn-saldo-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +65,7 @@ export function ReceitasClient({
   metaLiquido,
   metaBruto,
   metaReembolsos,
+  saldoGreenn,
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
@@ -71,6 +73,7 @@ export function ReceitasClient({
   metaLiquido: number;
   metaBruto: number;
   metaReembolsos: number;
+  saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
@@ -121,6 +124,9 @@ export function ReceitasClient({
         <Stat label="Recebido" value={formatBRL(stats.recebido)} highlight="emerald" />
         <Stat label="A receber" value={formatBRL(stats.aReceber)} highlight="amber" />
       </div>
+
+      {/* Saldo Greenn (cole print → Claude Vision extrai) */}
+      <GreennSaldoCard saldo={saldoGreenn} />
 
       {/* Card fixo: Meta Ads líquido do mês corrente (puxado automaticamente da API) */}
       {metaLiquido > 0 && (

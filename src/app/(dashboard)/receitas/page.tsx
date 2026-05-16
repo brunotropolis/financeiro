@@ -43,12 +43,19 @@ export default async function ReceitasPage({
 
   const metaPromise = fetchMetaAdsResumo("mes");
 
-  const [recRes, entRes] = await Promise.all([
+  const [recRes, entRes, saldoRes] = await Promise.all([
     query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
+    db.from("greenn_saldos").select("*").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const meta = await metaPromise;
+  const saldoGreenn = (saldoRes.data ?? null) as {
+    disponivel: number;
+    pendente: number;
+    antecipavel: number;
+    capturado_em: string;
+  } | null;
 
   return (
     <ReceitasClient
@@ -58,6 +65,7 @@ export default async function ReceitasPage({
       metaLiquido={meta?.faturamento_liquido ?? 0}
       metaBruto={meta?.faturamento_bruto ?? 0}
       metaReembolsos={meta?.reembolsos ?? 0}
+      saldoGreenn={saldoGreenn}
     />
   );
 }
