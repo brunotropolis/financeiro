@@ -5,7 +5,7 @@ import { ReceitasClient } from "./receitas-client";
 
 export const dynamic = "force-dynamic";
 
-type Periodo = "atual" | "proximos" | "personalizado";
+type Periodo = "atual" | "proximos" | "personalizado" | "todos";
 type Criterio = "competencia" | "caixa";
 
 function getRange(p: Periodo, criterio: Criterio, inicio?: string, fim?: string): { col: "data_venda" | "data_prevista_pagamento"; gte?: string; lte?: string; lt?: string } {
@@ -15,6 +15,10 @@ function getRange(p: Periodo, criterio: Criterio, inicio?: string, fim?: string)
   // Competência = mês da venda (data_venda); Caixa = mês que cai (data_prevista_pagamento)
   const col = criterio === "caixa" ? "data_prevista_pagamento" : "data_venda";
 
+  if (p === "todos") {
+    // Sem filtro de data — mostra tudo (útil pra revisar lançamentos retroativos)
+    return { col };
+  }
   if (p === "proximos") {
     // Próximos meses: sempre olha pela previsão de pagamento (faz mais sentido pra "o que vem")
     return { col: "data_prevista_pagamento", gte: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10) };
@@ -35,6 +39,7 @@ export default async function ReceitasPage({
   const periodo: Periodo =
     params.p === "proximos" ? "proximos" :
     params.p === "personalizado" ? "personalizado" :
+    params.p === "todos" ? "todos" :
     "atual";
   const criterio: Criterio = params.criterio === "caixa" ? "caixa" : "competencia";
   const range = getRange(periodo, criterio, params.inicio, params.fim);

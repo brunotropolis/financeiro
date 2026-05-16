@@ -7,6 +7,7 @@ const OPTS = [
   { value: "atual", label: "Mês atual" },
   { value: "proximos", label: "Próximos meses" },
   { value: "personalizado", label: "Personalizado" },
+  { value: "todos", label: "Todos" },
 ] as const;
 
 export function PeriodoFilter({ current, criterio }: { current: string; criterio: "competencia" | "caixa" }) {

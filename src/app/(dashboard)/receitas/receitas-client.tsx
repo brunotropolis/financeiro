@@ -66,7 +66,7 @@ export function ReceitasClient({
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   origens: OrigemReceitaRow[];
-  periodo: "atual" | "proximos" | "personalizado";
+  periodo: "atual" | "proximos" | "personalizado" | "todos";
   criterio: "competencia" | "caixa";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   metaFatLiquido: number;
@@ -112,10 +112,12 @@ export function ReceitasClient({
   const periodoLabel =
     periodo === "proximos" ? "próximos meses" :
     periodo === "personalizado" ? "período" :
+    periodo === "todos" ? "histórico" :
     "mês";
   const labelLista =
     periodo === "atual" ? "mês atual" :
     periodo === "proximos" ? "previstas para os próximos meses" :
+    periodo === "todos" ? "todos os lançamentos" :
     "período selecionado";
 
   return (
