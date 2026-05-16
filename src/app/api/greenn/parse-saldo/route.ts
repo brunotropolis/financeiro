@@ -102,73 +102,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Cria/atualiza receita "guarda-chuva" Greenn em aberto (a receber)
-    // pendente = total a receber (antecipável é um SUBSET do pendente — fração que
-    // pode ser antecipada mediante taxa, então NÃO soma). Disponível já pode ser sacado.
-    const valorAReceber = pendente;
-    const hoje = new Date().toISOString().slice(0, 10);
-
-    // Acha entidade Dream Baby (recebe Greenn) — fallback: primeira entidade ativa
-    const { data: entDream } = await supabase
-      .from("entidades")
-      .select("id")
-      .eq("nome", "Dream Baby")
-      .eq("ativo", true)
-      .maybeSingle();
-
-    let entId: string | null = (entDream as { id?: string } | null)?.id ?? null;
-    if (!entId) {
-      const { data: entFirst } = await supabase
-        .from("entidades")
-        .select("id")
-        .eq("ativo", true)
-        .order("ordem")
-        .limit(1)
-        .maybeSingle();
-      entId = (entFirst as { id?: string } | null)?.id ?? null;
-    }
-
-    if (entId) {
-      // Procura "guarda-chuva" existente (não recebida ainda) via transaction_id_externo fixo
-      const TX_ID = "GREENN_SALDO_ABERTO";
-      const { data: existing } = await supabase
-        .from("receitas_brutas")
-        .select("id")
-        .eq("origem", "greenn")
-        .eq("transaction_id_externo", TX_ID)
-        .maybeSingle();
-
-      const notas = `Atualizado via print Greenn. Pendente (a receber) R$ ${pendente.toFixed(2)}, dos quais R$ ${antecipavel.toFixed(2)} são antecipáveis. Disponível pra saque imediato: R$ ${disponivel.toFixed(2)}.`;
-
-      if (existing) {
-        await supabase
-          .from("receitas_brutas")
-          .update({
-            valor_bruto: valorAReceber,
-            valor_liquido: valorAReceber,
-            notas,
-            status: valorAReceber > 0 ? "previsto" : "recebido",
-            updated_by: userResp.user.id,
-          } as never)
-          .eq("id", (existing as { id: string } | null)?.id ?? "");
-      } else if (valorAReceber > 0) {
-        await supabase.from("receitas_brutas").insert({
-          origem: "greenn",
-          transaction_id_externo: TX_ID,
-          produto_nome: "Saldo Greenn em aberto",
-          valor_bruto: valorAReceber,
-          taxas: 0,
-          valor_liquido: valorAReceber,
-          metodo_pagamento: "PIX",
-          parcelas: 1,
-          data_venda: hoje,
-          status: "previsto",
-          entidade_id: entId,
-          notas,
-          created_by: userResp.user.id,
-        } as never);
-      }
-    }
+    // NOTA: saldo Greenn pendente NÃO vira receita_bruta (era double-count com o
+    // faturamento total do mês que vem do Meta API). Pendente fica só como snapshot
+    // no card Saldo Greenn e é somado diretamente na coluna "A receber" da /receitas.
 
     return NextResponse.json({
       ok: true,

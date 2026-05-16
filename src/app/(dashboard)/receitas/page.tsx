@@ -1,5 +1,6 @@
 import { dbServer } from "@/lib/supabase/db";
 import type { Entidade, ReceitaBruta } from "@/lib/types/database";
+import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import { ReceitasClient } from "./receitas-client";
 
 export const dynamic = "force-dynamic";
@@ -40,11 +41,16 @@ export default async function ReceitasPage({
   if (range.lte) query = query.lte(range.col, range.lte);
   if (range.lt) query = query.lt(range.col, range.lt);
 
+  // Meta API só usado quando o filtro for "atual" (mês corrente)
+  const metaPromise = periodo === "atual" ? fetchMetaAdsResumo("mes") : Promise.resolve(null);
+
   const [recRes, entRes, saldoRes] = await Promise.all([
     query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
     db.from("greenn_saldos").select("*").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
   ]);
+
+  const meta = await metaPromise;
 
   const saldoGreenn = (saldoRes.data ?? null) as {
     disponivel: number;
@@ -53,12 +59,19 @@ export default async function ReceitasPage({
     capturado_em: string;
   } | null;
 
+  // Faturamento Meta líquido (bruto - reembolsos) — só conta no filtro "atual"
+  const metaFatLiquido = meta?.faturamento_liquido ?? 0;
+  // Saldo Greenn pendente — sempre disponível (não depende de filtro)
+  const greennPendente = saldoGreenn?.pendente ?? 0;
+
   return (
     <ReceitasClient
       receitas={(recRes.data ?? []) as ReceitaBruta[]}
       entidades={(entRes.data ?? []) as Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">[]}
       periodo={periodo}
       saldoGreenn={saldoGreenn}
+      metaFatLiquido={metaFatLiquido}
+      greennPendente={greennPendente}
     />
   );
 }

@@ -49,7 +49,7 @@ export default async function DashboardPage({
     metaPeriodo === "personalizado" ? fim : undefined,
   );
 
-  const [contasRes, txRes, recRes, orcRes] = await Promise.all([
+  const [contasRes, txRes, recRes, orcRes, saldoGreennRes] = await Promise.all([
     db.from("contas_bancarias").select("saldo_atual").eq("ativo", true),
     db
       .from("transacoes")
@@ -67,6 +67,7 @@ export default async function DashboardPage({
       .from("v_buckets_realizados")
       .select("recorrencia_id,bucket_nome,categoria_cor,valor_estimado,gasto_real,qtd_transacoes,pct_usado,status")
       .eq("mes_referencia", inicioMesAtual),
+    db.from("greenn_saldos").select("pendente").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   const contas = (contasRes.data ?? []) as ContaSlim[];
@@ -99,10 +100,12 @@ export default async function DashboardPage({
     .reduce((s, t) => s + Number(t.valor), 0);
   const totalReceita = receitasRecebidas + receitasTransacoes;
 
-  // A receber (vai cair no caixa nos próximos meses)
-  const totalAReceber = receitas
+  // A receber (vai cair no caixa) = pendentes em receitas_brutas + saldo Greenn pendente
+  const greennPendente = Number(((saldoGreennRes.data ?? null) as { pendente?: number } | null)?.pendente ?? 0);
+  const receitasAReceber = receitas
     .filter((r) => !["recebido", "reembolsado", "chargeback", "cancelado"].includes(r.status))
     .reduce((s, r) => s + Number(r.valor_liquido), 0);
+  const totalAReceber = receitasAReceber + greennPendente;
 
   // Despesas: transações + gasto Meta Ads (puxado automaticamente, igual à receita)
   const metaGasto = meta?.gasto_total ?? 0;

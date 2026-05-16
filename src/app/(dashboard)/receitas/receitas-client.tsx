@@ -63,11 +63,15 @@ export function ReceitasClient({
   entidades,
   periodo,
   saldoGreenn,
+  metaFatLiquido,
+  greennPendente,
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   periodo: "atual" | "proximos" | "anteriores";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
+  metaFatLiquido: number;
+  greennPendente: number;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
@@ -79,17 +83,24 @@ export function ReceitasClient({
   );
 
   const stats = useMemo(() => {
-    let bruto = 0, liquido = 0, recebido = 0, aReceber = 0;
+    let manualLiquido = 0, manualRecebido = 0, manualAReceber = 0;
     for (const r of receitas) {
-      bruto += Number(r.valor_bruto);
-      liquido += Number(r.valor_liquido);
-      if (r.status === "recebido") recebido += Number(r.valor_liquido);
+      manualLiquido += Number(r.valor_liquido);
+      if (r.status === "recebido") manualRecebido += Number(r.valor_liquido);
       else if (!["reembolsado", "chargeback", "cancelado"].includes(r.status)) {
-        aReceber += Number(r.valor_liquido);
+        manualAReceber += Number(r.valor_liquido);
       }
     }
-    return { bruto, liquido, recebido, aReceber };
-  }, [receitas]);
+    // Faturamento total = lançamentos manuais + Meta líquido (vendas Greenn auto)
+    const faturamento = manualLiquido + metaFatLiquido;
+    // A receber = lançamentos pendentes (Amazon/Shopee/ML/etc) + saldo Greenn pendente
+    const aReceber = manualAReceber + greennPendente;
+    // Recebido = (Faturamento - A receber) — quanto já caiu efetivamente em caixa
+    // Para Greenn: faturado_meta - pendente = parte que já saiu pra conta
+    // Para outras origens: lançamentos com status=recebido
+    const recebido = Math.max(0, faturamento - aReceber);
+    return { faturamento, recebido, aReceber, manualRecebido, manualAReceber };
+  }, [receitas, metaFatLiquido, greennPendente]);
 
   const periodoLabel = periodo === "proximos" ? "próximos" : periodo === "anteriores" ? "anteriores" : "mês";
   const labelLista =
@@ -113,9 +124,23 @@ export function ReceitasClient({
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <Stat label={`Faturamento do ${periodoLabel}`} value={formatBRL(stats.liquido)} />
-        <Stat label="Recebido" value={formatBRL(stats.recebido)} highlight="emerald" />
-        <Stat label="A receber" value={formatBRL(stats.aReceber)} highlight="amber" />
+        <Stat
+          label={`Faturamento do ${periodoLabel}`}
+          value={formatBRL(stats.faturamento)}
+          hint={metaFatLiquido > 0 ? `inclui R$ ${metaFatLiquido.toFixed(2).replace(".", ",")} do Meta Ads` : undefined}
+        />
+        <Stat
+          label="Recebido (em caixa)"
+          value={formatBRL(stats.recebido)}
+          highlight="emerald"
+          hint="faturamento − a receber"
+        />
+        <Stat
+          label="A receber"
+          value={formatBRL(stats.aReceber)}
+          highlight="amber"
+          hint={greennPendente > 0 ? `inclui R$ ${greennPendente.toFixed(2).replace(".", ",")} pendente no Greenn` : undefined}
+        />
       </div>
 
       {/* Saldo Greenn (cole print → Claude Vision extrai) */}
@@ -180,7 +205,7 @@ export function ReceitasClient({
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: "emerald" | "amber" }) {
+function Stat({ label, value, highlight, hint }: { label: string; value: string; highlight?: "emerald" | "amber"; hint?: string }) {
   const cls =
     highlight === "emerald" ? "text-emerald-300" :
     highlight === "amber" ? "text-amber-300" : "text-white";
@@ -188,6 +213,7 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
       <div className="text-xs uppercase tracking-wide text-gray-400 mb-1">{label}</div>
       <div className={`text-xl font-bold ${cls}`}>{value}</div>
+      {hint && <div className="text-[10px] text-gray-500 mt-1">{hint}</div>}
     </div>
   );
 }
