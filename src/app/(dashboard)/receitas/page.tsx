@@ -6,34 +6,38 @@ import { ReceitasClient } from "./receitas-client";
 export const dynamic = "force-dynamic";
 
 type Periodo = "atual" | "proximos" | "personalizado";
+type Criterio = "competencia" | "caixa";
 
-function getRange(p: Periodo, inicio?: string, fim?: string): { col: "data_venda" | "data_prevista_pagamento"; gte?: string; lte?: string; lt?: string } {
+function getRange(p: Periodo, criterio: Criterio, inicio?: string, fim?: string): { col: "data_venda" | "data_prevista_pagamento"; gte?: string; lte?: string; lt?: string } {
   const now = new Date();
   const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+  // Competência = mês da venda (data_venda); Caixa = mês que cai (data_prevista_pagamento)
+  const col = criterio === "caixa" ? "data_prevista_pagamento" : "data_venda";
 
   if (p === "proximos") {
-    // Próximos meses: previsões com data_prevista_pagamento > fim do mês atual
+    // Próximos meses: sempre olha pela previsão de pagamento (faz mais sentido pra "o que vem")
     return { col: "data_prevista_pagamento", gte: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10) };
   }
   if (p === "personalizado" && inicio && fim) {
-    return { col: "data_venda", gte: inicio, lte: fim };
+    return { col, gte: inicio, lte: fim };
   }
   // atual (default)
-  return { col: "data_venda", gte: inicioMes, lte: fimMes };
+  return { col, gte: inicioMes, lte: fimMes };
 }
 
 export default async function ReceitasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; inicio?: string; fim?: string }>;
+  searchParams: Promise<{ p?: string; inicio?: string; fim?: string; criterio?: string }>;
 }) {
   const params = await searchParams;
   const periodo: Periodo =
     params.p === "proximos" ? "proximos" :
     params.p === "personalizado" ? "personalizado" :
     "atual";
-  const range = getRange(periodo, params.inicio, params.fim);
+  const criterio: Criterio = params.criterio === "caixa" ? "caixa" : "competencia";
+  const range = getRange(periodo, criterio, params.inicio, params.fim);
 
   const db = await dbServer();
   let query = db.from("receitas_brutas").select("*").order("data_venda", { ascending: false }).limit(500);
@@ -71,6 +75,7 @@ export default async function ReceitasPage({
       entidades={(entRes.data ?? []) as Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">[]}
       origens={(origRes.data ?? []) as OrigemReceitaRow[]}
       periodo={periodo}
+      criterio={criterio}
       saldoGreenn={saldoGreenn}
       metaFatLiquido={metaFatLiquido}
       greennPendente={greennPendente}

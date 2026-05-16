@@ -19,6 +19,13 @@ import { salvarReceita, deletarReceita, marcarReceitaRecebida, type ReceitaInput
 
 type EntLite = Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">;
 
+const MESES_ABR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+function mesAno(d: Date): string {
+  if (isNaN(d.getTime())) return "—";
+  const ano = d.getFullYear().toString().slice(2);
+  return `${MESES_ABR[d.getMonth()]}/${ano}`;
+}
+
 /**
  * Lista completa de status (DB suporta todos — Greenn webhook usa).
  * Usado pra renderizar badge na listagem.
@@ -51,6 +58,7 @@ export function ReceitasClient({
   entidades,
   origens,
   periodo,
+  criterio,
   saldoGreenn,
   metaFatLiquido,
   greennPendente,
@@ -59,6 +67,7 @@ export function ReceitasClient({
   entidades: EntLite[];
   origens: OrigemReceitaRow[];
   periodo: "atual" | "proximos" | "personalizado";
+  criterio: "competencia" | "caixa";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   metaFatLiquido: number;
   greennPendente: number;
@@ -116,7 +125,7 @@ export function ReceitasClient({
         descricao="Faturamento bruto (Greenn, afiliados, publis, AdSense, palestras). Diferente do dinheiro em conta — esse fica em Movimentações."
         acao={
           <div className="flex items-center gap-3">
-            <PeriodoFilter current={periodo} />
+            <PeriodoFilter current={periodo} criterio={criterio} />
             <Button onClick={() => { setEditing(null); setOpen(true); }} disabled={entidades.length === 0}>
               <Plus className="w-4 h-4" /> Lançar receita
             </Button>
@@ -126,7 +135,7 @@ export function ReceitasClient({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <Stat
-          label={`Faturamento do ${periodoLabel}`}
+          label={criterio === "caixa" ? `Vendas com pgto no ${periodoLabel}` : `Faturamento do ${periodoLabel}`}
           value={formatBRL(stats.faturamento)}
           hint={metaFatLiquido > 0 ? `inclui R$ ${metaFatLiquido.toFixed(2).replace(".", ",")} do Meta Ads` : undefined}
         />
@@ -163,10 +172,11 @@ export function ReceitasClient({
             <tr>
               <th className="text-left px-4 py-3">Origem</th>
               <th className="text-left px-4 py-3">Produto/Cliente</th>
+              <th className="text-center px-4 py-3">Competência</th>
               <th className="text-right px-4 py-3">Faturamento</th>
               <th className="text-right px-4 py-3">Recebido</th>
               <th className="text-right px-4 py-3">A receber</th>
-              <th className="text-left px-4 py-3">Prev. pgto</th>
+              <th className="text-center px-4 py-3">Quando cai</th>
               <th className="text-right px-4 py-3 w-24">Ações</th>
             </tr>
           </thead>
@@ -193,7 +203,7 @@ export function ReceitasClient({
 
             {filtradas.length === 0 && (filtroOrigem !== "todas" && filtroOrigem !== "greenn") && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                   Nenhuma receita lançada neste período. Clica em &quot;Lançar receita&quot; pra adicionar.
                 </td>
               </tr>
@@ -279,6 +289,9 @@ function GreennRow({
           )}
         </div>
       </td>
+      <td className="px-4 py-3 text-center text-xs text-gray-400 whitespace-nowrap">
+        {mesAno(new Date())}
+      </td>
       <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">
         {faturamento > 0 ? formatBRL(faturamento) : <span className="text-gray-700">—</span>}
       </td>
@@ -288,8 +301,8 @@ function GreennRow({
       <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
         {aReceber > 0 ? <span className="text-amber-300">{formatBRL(aReceber)}</span> : <span className="text-gray-700">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-        <span className="text-[11px]">atualiza mensal</span>
+      <td className="px-4 py-3 text-center text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-[11px]">conforme libera</span>
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end">
@@ -359,6 +372,9 @@ function Row({ rec, entidade, origem, onEdit }: { rec: ReceitaBruta; entidade?: 
           {rec.cliente_nome ?? entidade?.nome ?? ""}
         </div>
       </td>
+      <td className="px-4 py-3 text-center text-xs text-gray-300 whitespace-nowrap">
+        {mesAno(new Date(rec.data_venda + "T00:00:00"))}
+      </td>
       <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">{formatBRL(valor)}</td>
       <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
         {isRecebido ? <span className="text-emerald-300">{formatBRL(valor)}</span> : <span className="text-gray-700">—</span>}
@@ -366,11 +382,15 @@ function Row({ rec, entidade, origem, onEdit }: { rec: ReceitaBruta; entidade?: 
       <td className="px-4 py-3 text-right text-sm font-mono whitespace-nowrap">
         {!isRecebido && !isCancelado ? <span className="text-amber-300">{formatBRL(valor)}</span> : <span className="text-gray-700">—</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">
+      <td className="px-4 py-3 text-center text-xs whitespace-nowrap">
         {isRecebido && rec.data_recebimento ? (
-          <span title="Recebido em">{formatDate(rec.data_recebimento)}</span>
+          <span className="text-emerald-300" title={`Recebido em ${formatDate(rec.data_recebimento)}`}>
+            {mesAno(new Date(rec.data_recebimento + "T00:00:00"))}
+          </span>
         ) : rec.data_prevista_pagamento ? (
-          <span title="Previsão">{formatDate(rec.data_prevista_pagamento)}</span>
+          <span className="text-amber-300" title={`Previsão: ${formatDate(rec.data_prevista_pagamento)}`}>
+            {mesAno(new Date(rec.data_prevista_pagamento + "T00:00:00"))}
+          </span>
         ) : (
           <span className="text-gray-600">—</span>
         )}

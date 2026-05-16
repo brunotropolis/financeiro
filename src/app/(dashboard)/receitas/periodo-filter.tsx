@@ -9,7 +9,7 @@ const OPTS = [
   { value: "personalizado", label: "Personalizado" },
 ] as const;
 
-export function PeriodoFilter({ current }: { current: string }) {
+export function PeriodoFilter({ current, criterio }: { current: string; criterio: "competencia" | "caixa" }) {
   const router = useRouter();
   const sp = useSearchParams();
   const [showCustom, setShowCustom] = useState(current === "personalizado");
@@ -24,43 +24,88 @@ export function PeriodoFilter({ current }: { current: string }) {
     }
   }, [current, sp]);
 
+  // Helper: monta URL preservando o critério atual
+  function buildUrl(periodo: string, extra?: Record<string, string>): string {
+    const qs = new URLSearchParams();
+    if (periodo !== "atual") qs.set("p", periodo);
+    if (criterio !== "competencia") qs.set("criterio", criterio);
+    if (extra) for (const [k, v] of Object.entries(extra)) qs.set(k, v);
+    const s = qs.toString();
+    return s ? `/receitas?${s}` : "/receitas";
+  }
+
   function handleClick(v: string) {
-    if (v === "atual") {
-      router.push("/receitas");
-    } else if (v === "personalizado") {
-      // Default: mês atual se vazio
+    if (v === "personalizado") {
       const now = new Date();
       const ini = dataInicio || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
       const fim = dataFim || new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
       setDataInicio(ini);
       setDataFim(fim);
-      router.push(`/receitas?p=personalizado&inicio=${ini}&fim=${fim}`);
+      router.push(buildUrl("personalizado", { inicio: ini, fim }));
     } else {
-      router.push(`/receitas?p=${v}`);
+      router.push(buildUrl(v));
     }
   }
 
   function aplicarPersonalizado() {
     if (!dataInicio || !dataFim) return;
-    router.push(`/receitas?p=personalizado&inicio=${dataInicio}&fim=${dataFim}`);
+    router.push(buildUrl("personalizado", { inicio: dataInicio, fim: dataFim }));
+  }
+
+  function trocarCriterio(novo: "competencia" | "caixa") {
+    if (novo === criterio) return;
+    const qs = new URLSearchParams();
+    if (current !== "atual") qs.set("p", current);
+    if (novo !== "competencia") qs.set("criterio", novo);
+    if (current === "personalizado") {
+      if (dataInicio) qs.set("inicio", dataInicio);
+      if (dataFim) qs.set("fim", dataFim);
+    }
+    const s = qs.toString();
+    router.push(s ? `/receitas?${s}` : "/receitas");
   }
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1">
-        {OPTS.map((o) => (
+      <div className="flex items-center gap-3">
+        {/* Toggle critério */}
+        <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1">
           <button
-            key={o.value}
-            onClick={() => handleClick(o.value)}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              current === o.value
-                ? "bg-gray-700 text-white"
-                : "text-gray-400 hover:text-white"
+            onClick={() => trocarCriterio("competencia")}
+            className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+              criterio === "competencia" ? "bg-blue-700 text-white" : "text-gray-400 hover:text-white"
             }`}
+            title="Filtra pela data da venda (mês de faturamento)"
           >
-            {o.label}
+            Competência
           </button>
-        ))}
+          <button
+            onClick={() => trocarCriterio("caixa")}
+            className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+              criterio === "caixa" ? "bg-emerald-700 text-white" : "text-gray-400 hover:text-white"
+            }`}
+            title="Filtra pela previsão de pagamento (mês que cai)"
+          >
+            Caixa
+          </button>
+        </div>
+
+        {/* Botões de período */}
+        <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-lg p-1">
+          {OPTS.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => handleClick(o.value)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                current === o.value
+                  ? "bg-gray-700 text-white"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {showCustom && (
