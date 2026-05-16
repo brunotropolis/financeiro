@@ -34,6 +34,7 @@ const navCadastros = [
   { href: "/contas", label: "Contas", icon: Wallet },
   { href: "/cartoes", label: "Cartões", icon: CreditCard },
   { href: "/categorias", label: "Categorias", icon: Tag },
+  { href: "/origens", label: "Origens", icon: TrendingUp },
   { href: "/fornecedores", label: "Fornecedores", icon: Truck },
 ];
 

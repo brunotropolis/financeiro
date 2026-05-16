@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Entidade, OrigemReceita, ReceitaBruta, StatusReceita } from "@/lib/types/database";
+import type { Entidade, OrigemReceita, OrigemReceitaRow, ReceitaBruta, StatusReceita } from "@/lib/types/database";
 import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
 import { GreennSaldoCard } from "./greenn-saldo-card";
@@ -17,20 +17,6 @@ import { formatBRL, formatDate, parseBRL, formatBRLEditable, maskBRLInput } from
 import { salvarReceita, deletarReceita, marcarReceitaRecebida, type ReceitaInput } from "./actions";
 
 type EntLite = Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">;
-
-const ORIGENS: { value: OrigemReceita; label: string }[] = [
-  { value: "manual", label: "Manual" },
-  { value: "publi", label: "Publi" },
-  { value: "adsense", label: "AdSense" },
-  { value: "palestra", label: "Palestra" },
-  { value: "consultoria", label: "Consultoria" },
-  { value: "greenn", label: "Greenn (auto)" },
-  { value: "amazon_aff", label: "Amazon afiliados" },
-  { value: "shopee_aff", label: "Shopee afiliados" },
-  { value: "ml_aff", label: "ML afiliados" },
-  { value: "magalu_aff", label: "Magalu afiliados" },
-  { value: "outro", label: "Outro" },
-];
 
 /**
  * Lista completa de status (DB suporta todos — Greenn webhook usa).
@@ -62,6 +48,7 @@ const STATUS_MANUAIS: { value: StatusReceita; label: string }[] = [
 export function ReceitasClient({
   receitas,
   entidades,
+  origens,
   periodo,
   saldoGreenn,
   metaFatLiquido,
@@ -69,6 +56,7 @@ export function ReceitasClient({
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
+  origens: OrigemReceitaRow[];
   periodo: "atual" | "proximos" | "anteriores";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   metaFatLiquido: number;
@@ -76,7 +64,14 @@ export function ReceitasClient({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
-  const [filtroOrigem, setFiltroOrigem] = useState<"todas" | OrigemReceita>("todas");
+  const [filtroOrigem, setFiltroOrigem] = useState<string>("todas");
+
+  // Mapa slug → row (pra renderizar nome/cor das receitas existentes pelo slug)
+  const origemBySlug = useMemo(() => {
+    const m = new Map<string, OrigemReceitaRow>();
+    for (const o of origens) m.set(o.slug, o);
+    return m;
+  }, [origens]);
 
   const filtradas = useMemo(
     () => filtroOrigem === "todas" ? receitas : receitas.filter((r) => r.origem === filtroOrigem),
@@ -148,11 +143,11 @@ export function ReceitasClient({
       <GreennSaldoCard saldo={saldoGreenn} />
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <Select value={filtroOrigem} onValueChange={(v) => setFiltroOrigem(v as typeof filtroOrigem)}>
+        <Select value={filtroOrigem} onValueChange={setFiltroOrigem}>
           <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as origens</SelectItem>
-            {ORIGENS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            {origens.map((o) => <SelectItem key={o.id} value={o.slug}>{o.nome}</SelectItem>)}
           </SelectContent>
         </Select>
         <span className="text-xs text-gray-500 ml-auto">
@@ -187,6 +182,7 @@ export function ReceitasClient({
                   key={r.id}
                   rec={r}
                   entidade={entidades.find((e) => e.id === r.entidade_id)}
+                  origem={origemBySlug.get(r.origem)}
                   onEdit={() => { setEditing(r); setOpen(true); }}
                 />
               ))}
@@ -200,6 +196,7 @@ export function ReceitasClient({
         onOpenChange={setOpen}
         receita={editing}
         entidades={entidades}
+        origens={origens}
         onSaved={() => setOpen(false)}
       />
     </div>
@@ -219,7 +216,7 @@ function Stat({ label, value, highlight, hint }: { label: string; value: string;
   );
 }
 
-function Row({ rec, entidade, onEdit }: { rec: ReceitaBruta; entidade?: EntLite; onEdit: () => void }) {
+function Row({ rec, entidade, origem, onEdit }: { rec: ReceitaBruta; entidade?: EntLite; origem?: OrigemReceitaRow; onEdit: () => void }) {
   const [pending, startTransition] = useTransition();
 
   function deletar() {
@@ -246,10 +243,11 @@ function Row({ rec, entidade, onEdit }: { rec: ReceitaBruta; entidade?: EntLite;
   return (
     <tr className={`hover:bg-gray-800/30 ${isCancelado ? "opacity-50" : ""}`}>
       <td className="px-4 py-3">
-        <div className="text-sm text-gray-300">
-          {ORIGENS.find((o) => o.value === rec.origem)?.label ?? rec.origem}
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: origem?.cor_hex ?? "#6b7280" }} />
+          <span className="text-sm text-gray-300">{origem?.nome ?? rec.origem}</span>
         </div>
-        <div className="text-[10px] text-gray-500 mt-0.5">
+        <div className="text-[10px] text-gray-500 mt-0.5 ml-4">
           {formatDate(rec.data_venda)}
         </div>
       </td>
@@ -298,18 +296,20 @@ function ReceitaFormDialog({
   onOpenChange,
   receita,
   entidades,
+  origens,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   receita: ReceitaBruta | null;
   entidades: EntLite[];
+  origens: OrigemReceitaRow[];
   onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
-  const [origem, setOrigem] = useState<OrigemReceita>("publi");
+  const [origemId, setOrigemId] = useState("");
   const [produto, setProduto] = useState("");
   const [cliente, setCliente] = useState("");
   const [valor, setValor] = useState("");
@@ -321,7 +321,10 @@ function ReceitaFormDialog({
 
   useEffect(() => {
     if (!open) return;
-    setOrigem((receita?.origem as OrigemReceita) ?? "publi");
+    // Encontra origem da receita atual pelo slug, ou primeira ativa como default
+    const slugAtual = receita?.origem as string | undefined;
+    const matched = slugAtual ? origens.find((o) => o.slug === slugAtual) : null;
+    setOrigemId(matched?.id ?? origens.find((o) => o.slug === "publi")?.id ?? origens[0]?.id ?? "");
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
     setValor(receita ? formatBRLEditable(receita.valor_bruto) : "");
@@ -331,7 +334,7 @@ function ReceitaFormDialog({
     setEntidadeId(receita?.entidade_id ?? entidades[0]?.id ?? "");
     setNotas(receita?.notas ?? "");
     setErro(null);
-  }, [open, receita, entidades]);
+  }, [open, receita, entidades, origens]);
 
   // Auto-detecta status baseado em datas
   useEffect(() => {
@@ -349,10 +352,20 @@ function ReceitaFormDialog({
     const v = parseBRL(valor);
     if (!v || v <= 0) return setErro("Valor deve ser maior que zero.");
     if (!entidadeId) return setErro("Selecione uma entidade.");
+    if (!origemId) return setErro("Selecione uma origem.");
+
+    const origemSel = origens.find((o) => o.id === origemId);
+    if (!origemSel) return setErro("Origem inválida.");
+
+    // Slug ↔ enum: se o slug não for um dos valores válidos do enum legado,
+    // grava 'outro' na coluna enum (mas mantém origem_id como referência real)
+    const ENUM_SLUGS = new Set(["greenn","amazon_aff","shopee_aff","ml_aff","magalu_aff","publi","adsense","palestra","consultoria","manual","outro"]);
+    const origemEnum = (ENUM_SLUGS.has(origemSel.slug) ? origemSel.slug : "outro") as OrigemReceita;
 
     const input: ReceitaInput = {
       id: receita?.id,
-      origem,
+      origem: origemEnum,
+      origem_id: origemId,
       produto_nome: produto,
       cliente_nome: cliente,
       valor_bruto: v,
@@ -386,12 +399,22 @@ function ReceitaFormDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Origem</Label>
-              <Select value={origem} onValueChange={(v) => setOrigem(v as OrigemReceita)}>
-                <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
+              <Select value={origemId} onValueChange={setOrigemId}>
+                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {ORIGENS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  {origens.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      <span className="inline-flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: o.cor_hex ?? "#6b7280" }} />
+                        {o.nome}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-gray-500 mt-1">
+                <a href="/origens" target="_blank" className="text-blue-400 hover:text-blue-300">+ Gerenciar origens</a>
+              </p>
             </div>
             <div>
               <Label>Entidade que recebe</Label>

@@ -52,6 +52,18 @@ export type OrigemReceita =
   | "consultoria"
   | "manual"
   | "outro";
+
+/** Linha da tabela origens_receita — substitui o enum estático com CRUD dinâmico */
+export interface OrigemReceitaRow {
+  id: string;
+  slug: string;
+  nome: string;
+  cor_hex: string | null;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
 export type StatusReceita =
   | "previsto"
   | "confirmado"

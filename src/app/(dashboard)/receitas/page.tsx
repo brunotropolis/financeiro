@@ -1,5 +1,5 @@
 import { dbServer } from "@/lib/supabase/db";
-import type { Entidade, ReceitaBruta } from "@/lib/types/database";
+import type { Entidade, OrigemReceitaRow, ReceitaBruta } from "@/lib/types/database";
 import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import { ReceitasClient } from "./receitas-client";
 
@@ -44,10 +44,11 @@ export default async function ReceitasPage({
   // Meta API só usado quando o filtro for "atual" (mês corrente)
   const metaPromise = periodo === "atual" ? fetchMetaAdsResumo("mes") : Promise.resolve(null);
 
-  const [recRes, entRes, saldoRes] = await Promise.all([
+  const [recRes, entRes, saldoRes, origRes] = await Promise.all([
     query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
     db.from("greenn_saldos").select("*").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
+    db.from("origens_receita").select("*").eq("ativo", true).order("ordem").order("nome"),
   ]);
 
   const meta = await metaPromise;
@@ -68,6 +69,7 @@ export default async function ReceitasPage({
     <ReceitasClient
       receitas={(recRes.data ?? []) as ReceitaBruta[]}
       entidades={(entRes.data ?? []) as Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">[]}
+      origens={(origRes.data ?? []) as OrigemReceitaRow[]}
       periodo={periodo}
       saldoGreenn={saldoGreenn}
       metaFatLiquido={metaFatLiquido}
