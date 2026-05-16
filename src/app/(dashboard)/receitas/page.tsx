@@ -43,10 +43,20 @@ export default async function ReceitasPage({
 
   const metaPromise = fetchMetaAdsResumo("mes");
 
-  const [recRes, entRes, saldoRes] = await Promise.all([
+  // Faturamento do mês corrente (sempre mês atual, independente do filtro acima)
+  const now = new Date();
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  const [recRes, entRes, saldoRes, fatRes] = await Promise.all([
     query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
     db.from("greenn_saldos").select("*").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
+    db
+      .from("receitas_brutas")
+      .select("origem,valor_liquido,status,data_venda,data_prevista_pagamento")
+      .gte("data_venda", inicioMes)
+      .lte("data_venda", fimMes),
   ]);
 
   const meta = await metaPromise;
@@ -57,15 +67,22 @@ export default async function ReceitasPage({
     capturado_em: string;
   } | null;
 
+  const receitasDoMes = (fatRes.data ?? []) as Array<{
+    origem: string;
+    valor_liquido: number;
+    status: string;
+    data_venda: string;
+    data_prevista_pagamento: string | null;
+  }>;
+
   return (
     <ReceitasClient
       receitas={(recRes.data ?? []) as ReceitaBruta[]}
       entidades={(entRes.data ?? []) as Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">[]}
       periodo={periodo}
       metaLiquido={meta?.faturamento_liquido ?? 0}
-      metaBruto={meta?.faturamento_bruto ?? 0}
-      metaReembolsos={meta?.reembolsos ?? 0}
       saldoGreenn={saldoGreenn}
+      receitasDoMes={receitasDoMes}
     />
   );
 }

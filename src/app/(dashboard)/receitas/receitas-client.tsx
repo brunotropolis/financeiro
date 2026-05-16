@@ -5,6 +5,7 @@ import type { Entidade, OrigemReceita, ReceitaBruta, StatusReceita } from "@/lib
 import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle, Megaphone, ExternalLink } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
 import { GreennSaldoCard } from "./greenn-saldo-card";
+import { FaturamentoMesCard } from "./faturamento-mes-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,17 +64,15 @@ export function ReceitasClient({
   entidades,
   periodo,
   metaLiquido,
-  metaBruto,
-  metaReembolsos,
   saldoGreenn,
+  receitasDoMes,
 }: {
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   periodo: "atual" | "proximos" | "anteriores";
   metaLiquido: number;
-  metaBruto: number;
-  metaReembolsos: number;
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
+  receitasDoMes: Array<{ origem: string; valor_liquido: number; status: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
@@ -128,23 +127,19 @@ export function ReceitasClient({
       {/* Saldo Greenn (cole print → Claude Vision extrai) */}
       <GreennSaldoCard saldo={saldoGreenn} />
 
-      {/* Card fixo: Meta Ads líquido do mês corrente (puxado automaticamente da API) */}
+      {/* Faturamento do mês — agregado por origem */}
+      <FaturamentoMesCard receitas={receitasDoMes} />
+
+      {/* Card fixo: Meta Ads líquido do mês corrente (só o valor que importa pro caixa) */}
       {metaLiquido > 0 && (
         <div className="bg-gradient-to-br from-blue-950/40 to-indigo-950/30 border border-blue-900/50 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Megaphone className="w-5 h-5 text-blue-400 shrink-0" />
             <div>
               <div className="text-[10px] text-gray-400 uppercase tracking-wide">
-                Meta Ads — faturamento líquido (mês atual, fixo)
+                Meta Ads — faturamento líquido (mês atual)
               </div>
               <div className="text-2xl font-bold text-emerald-300 mt-0.5">{formatBRL(metaLiquido)}</div>
-              <div className="text-[11px] text-gray-500 mt-0.5">
-                Bruto {formatBRL(metaBruto)}
-                {metaReembolsos > 0 && (
-                  <> · <span className="text-rose-400">−{formatBRL(metaReembolsos)} reembolsos</span></>
-                )}
-                {" · puxado da Meta API"}
-              </div>
             </div>
           </div>
           <a

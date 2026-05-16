@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Salva no banco
+    // Salva snapshot histórico
     const { error: insertErr } = await supabase.from("greenn_saldos").insert({
       disponivel,
       pendente,
@@ -100,6 +100,64 @@ export async function POST(req: NextRequest) {
 
     if (insertErr) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+
+    // Cria/atualiza receita "guarda-chuva" Greenn em aberto (a receber)
+    // pendente + antecipável = total a receber (disponível já pode ser sacado)
+    const valorAReceber = pendente + antecipavel;
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    // Acha entidade Dream Baby (recebe Greenn) — fallback: primeira entidade ativa
+    const { data: entDream } = await supabase
+      .from("entidades")
+      .select("id")
+      .eq("nome", "Dream Baby")
+      .eq("ativo", true)
+      .maybeSingle();
+    const { data: entFallback } = entDream
+      ? { data: entDream }
+      : await supabase.from("entidades").select("id").eq("ativo", true).order("ordem").limit(1).maybeSingle();
+
+    if (entFallback?.id) {
+      // Procura "guarda-chuva" existente (não recebida ainda) via transaction_id_externo fixo
+      const TX_ID = "GREENN_SALDO_ABERTO";
+      const { data: existing } = await supabase
+        .from("receitas_brutas")
+        .select("id")
+        .eq("origem", "greenn")
+        .eq("transaction_id_externo", TX_ID)
+        .maybeSingle();
+
+      const notas = `Atualizado via print Greenn. Disponível R$ ${disponivel.toFixed(2)} (já liberado), Pendente R$ ${pendente.toFixed(2)}, Antecipável R$ ${antecipavel.toFixed(2)}.`;
+
+      if (existing) {
+        await supabase
+          .from("receitas_brutas")
+          .update({
+            valor_bruto: valorAReceber,
+            valor_liquido: valorAReceber,
+            notas,
+            status: valorAReceber > 0 ? "previsto" : "recebido",
+            updated_by: userResp.user.id,
+          })
+          .eq("id", existing.id);
+      } else if (valorAReceber > 0) {
+        await supabase.from("receitas_brutas").insert({
+          origem: "greenn",
+          transaction_id_externo: TX_ID,
+          produto_nome: "Saldo Greenn em aberto",
+          valor_bruto: valorAReceber,
+          taxas: 0,
+          valor_liquido: valorAReceber,
+          metodo_pagamento: "PIX",
+          parcelas: 1,
+          data_venda: hoje,
+          status: "previsto",
+          entidade_id: entFallback.id,
+          notas,
+          created_by: userResp.user.id,
+        });
+      }
     }
 
     return NextResponse.json({
