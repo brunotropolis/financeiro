@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       pendente,
       antecipavel,
       created_by: userResp.user.id,
-    });
+    } as never);
 
     if (insertErr) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
@@ -139,8 +139,8 @@ export async function POST(req: NextRequest) {
             notas,
             status: valorAReceber > 0 ? "previsto" : "recebido",
             updated_by: userResp.user.id,
-          })
-          .eq("id", existing.id);
+          } as never)
+          .eq("id", (existing as { id: string }).id);
       } else if (valorAReceber > 0) {
         await supabase.from("receitas_brutas").insert({
           origem: "greenn",
@@ -153,10 +153,10 @@ export async function POST(req: NextRequest) {
           parcelas: 1,
           data_venda: hoje,
           status: "previsto",
-          entidade_id: entFallback.id,
+          entidade_id: (entFallback as { id: string }).id,
           notas,
           created_by: userResp.user.id,
-        });
+        } as never);
       }
     }
 
