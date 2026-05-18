@@ -49,7 +49,7 @@ export default async function DashboardPage({
     metaPeriodo === "personalizado" ? fim : undefined,
   );
 
-  const [contasRes, txRes, recRes, orcRes, saldoGreennRes] = await Promise.all([
+  const [contasRes, txRes, recRes, orcRes, saldoGreennRes, projAnuncioRes] = await Promise.all([
     db.from("contas_bancarias").select("saldo_atual").eq("ativo", true),
     db
       .from("transacoes")
@@ -68,7 +68,16 @@ export default async function DashboardPage({
       .select("recorrencia_id,bucket_nome,categoria_cor,valor_estimado,gasto_real,qtd_transacoes,pct_usado,status")
       .eq("mes_referencia", inicioMesAtual),
     db.from("greenn_saldos").select("pendente").order("capturado_em", { ascending: false }).limit(1).maybeSingle(),
+    // Projeto vinculado à categoria Anúncio (= projeto do tráfego Meta)
+    db.from("categorias").select("projeto_padrao_id").eq("nome", "Anúncio").maybeSingle(),
   ]);
+
+  // Pega o nome/cor do projeto do tráfego Meta (vinculado à categoria Anúncio)
+  const projAnuncioId = (projAnuncioRes.data as { projeto_padrao_id?: string } | null)?.projeto_padrao_id ?? null;
+  const projMetaRes = projAnuncioId
+    ? await db.from("projetos").select("id,nome,cor_hex").eq("id", projAnuncioId).maybeSingle()
+    : { data: null };
+  const projMeta = (projMetaRes.data as { id: string; nome: string; cor_hex: string | null } | null) ?? null;
 
   const contas = (contasRes.data ?? []) as ContaSlim[];
   const transacoes = (txRes.data ?? []) as TxSlim[];
@@ -219,8 +228,14 @@ export default async function DashboardPage({
           <div className="flex items-center gap-3">
             <Megaphone className="w-4 h-4 text-blue-400 shrink-0" />
             <div>
-              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">
-                Meta Ads ({periodoLabel})
+              <div className="text-[10px] text-gray-400 uppercase tracking-wide mb-1 flex items-center gap-2">
+                <span>Meta Ads ({periodoLabel})</span>
+                {projMeta && (
+                  <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: projMeta.cor_hex ?? "#6b7280" }} />
+                    {projMeta.nome}
+                  </span>
+                )}
               </div>
               <div className="flex gap-4 text-sm">
                 <span>

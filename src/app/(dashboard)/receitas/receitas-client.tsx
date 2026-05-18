@@ -209,14 +209,24 @@ export function ReceitasClient({
           </thead>
           <tbody className="divide-y divide-gray-800">
             {/* Linha fixa Greenn: sempre primeira, snapshot do saldo pendente */}
-            {(filtroOrigem === "todas" || filtroOrigem === "greenn") && (
-              <GreennRow
-                saldo={saldoGreenn}
-                origem={origemBySlug.get("greenn")}
-                metaFatLiquido={metaFatLiquido}
-                onAtualizar={() => setGreennModalOpen(true)}
-              />
-            )}
+            {(filtroOrigem === "todas" || filtroOrigem === "greenn") && (() => {
+              const greennOrigem = origemBySlug.get("greenn");
+              const greennProjeto = greennOrigem?.projeto_padrao_id
+                ? projetoById.get(greennOrigem.projeto_padrao_id)
+                : undefined;
+              // Esconde a linha Greenn se filtro de projeto != projeto da Greenn
+              if (filtroProjeto !== "todos" && filtroProjeto !== "__sem__" && greennProjeto?.id !== filtroProjeto) return null;
+              if (filtroProjeto === "__sem__" && greennProjeto) return null;
+              return (
+                <GreennRow
+                  saldo={saldoGreenn}
+                  origem={greennOrigem}
+                  projeto={greennProjeto}
+                  metaFatLiquido={metaFatLiquido}
+                  onAtualizar={() => setGreennModalOpen(true)}
+                />
+              );
+            })()}
 
             {filtradas.map((r) => (
               <Row
@@ -263,11 +273,13 @@ export function ReceitasClient({
 function GreennRow({
   saldo,
   origem,
+  projeto,
   metaFatLiquido,
   onAtualizar,
 }: {
   saldo: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
   origem?: OrigemReceitaRow;
+  projeto?: ProjetoRow;
   metaFatLiquido: number;
   onAtualizar: () => void;
 }) {
@@ -305,7 +317,14 @@ function GreennRow({
           {saldo ? `saldo atualizado há ${tempoRel(saldo.capturado_em)}` : "saldo nunca capturado"}
         </div>
       </td>
-      <td className="px-4 py-3 text-xs text-gray-500">—</td>
+      <td className="px-4 py-3">
+        {projeto ? (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: projeto.cor_hex ?? "#6b7280" }} />
+            <span className="text-[11px] text-gray-300">{projeto.nome}</span>
+          </div>
+        ) : <span className="text-[11px] text-gray-700">—</span>}
+      </td>
       <td className="px-4 py-3">
         <div className="text-sm font-medium text-white">Vendas Greenn — mês atual</div>
         <div className="text-xs text-gray-500">
