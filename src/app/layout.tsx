@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Financeiro — Bruno Tropolis",
+  title: "Gerenciador Financeiro",
   description: "Painel de controle financeiro: fluxo de caixa, cartões, faturas e projeção",
 };
 

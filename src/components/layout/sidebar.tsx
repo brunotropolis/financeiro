@@ -72,10 +72,10 @@ export function Sidebar() {
     <aside className="w-60 min-h-screen bg-sidebar flex flex-col border-r border-sidebar-border">
       <div className="px-6 py-5 border-b border-sidebar-border">
         <h1 className="text-lg font-bold text-sidebar-foreground">
-          💰 Financeiro
+          💰 Gerenciador
         </h1>
         <p className="text-xs text-sidebar-foreground/50 mt-0.5">
-          Controle de Fluxo
+          Financeiro
         </p>
       </div>
 
