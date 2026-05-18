@@ -59,6 +59,7 @@ export function TransacoesClient({
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoTransacao>("todos");
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todas");
   const [filtroProjeto, setFiltroProjeto] = useState<string>("todos");
+  const [filtroFonte, setFiltroFonte] = useState<"pontuais" | "recorrencias" | "todas">("pontuais");
   const [agrupar, setAgrupar] = useState(true);
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set()); // categorias abertas (default = todas fechadas)
 
@@ -68,7 +69,7 @@ export function TransacoesClient({
     return m;
   }, [projetos]);
 
-  // transacoes JÁ vem filtrada por período pelo server. Aqui só filtra por tipo/entidade/projeto.
+  // transacoes JÁ vem filtrada por período pelo server. Aqui filtra por tipo/entidade/projeto/fonte.
   const filtradas = useMemo(() => {
     return transacoes.filter((t) => {
       if (filtroTipo !== "todos" && t.tipo !== filtroTipo) return false;
@@ -77,9 +78,12 @@ export function TransacoesClient({
         if (filtroProjeto === "__sem__" && t.projeto_id) return false;
         if (filtroProjeto !== "__sem__" && t.projeto_id !== filtroProjeto) return false;
       }
+      // Fonte: pontuais = sem recorrencia_id; recorrencias = com; todas = ambas
+      if (filtroFonte === "pontuais" && t.recorrencia_id) return false;
+      if (filtroFonte === "recorrencias" && !t.recorrencia_id) return false;
       return true;
     });
-  }, [transacoes, filtroTipo, filtroEntidade, filtroProjeto]);
+  }, [transacoes, filtroTipo, filtroEntidade, filtroProjeto, filtroFonte]);
 
   const totais = useMemo(() => {
     let despesas = 0, receitas = 0;
@@ -173,6 +177,14 @@ export function TransacoesClient({
             <SelectItem value="todos">Todos os projetos</SelectItem>
             {projetos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
             <SelectItem value="__sem__">— sem projeto —</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroFonte} onValueChange={(v) => setFiltroFonte(v as typeof filtroFonte)}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pontuais">Lançamentos pontuais</SelectItem>
+            <SelectItem value="recorrencias">De recorrências</SelectItem>
+            <SelectItem value="todas">Todas as fontes</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex gap-1">
