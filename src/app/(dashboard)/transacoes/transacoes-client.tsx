@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   CartaoCredito, Categoria, ContaBancaria, Entidade, Fornecedor,
   FormaPagamento, Transacao, TipoTransacao,
 } from "@/lib/types/database";
-import { TrendingDown, TrendingUp, Plus, Pencil, Trash2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { TrendingDown, TrendingUp, Plus, Pencil, Trash2, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Tag } from "lucide-react";
+import { PeriodoFilter } from "./periodo-filter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,7 @@ export function TransacoesClient({
   fornecedores,
   cartoes,
   contas,
+  periodo,
 }: {
   transacoes: Transacao[];
   entidades: EntLite[];
@@ -47,12 +49,16 @@ export function TransacoesClient({
   fornecedores: FornLite[];
   cartoes: CartLite[];
   contas: ContaLite[];
+  periodo: "atual" | "proximos" | "personalizado" | "todos";
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Transacao | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoTransacao>("todos");
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todas");
+  const [agrupar, setAgrupar] = useState(true);
+  const [colapsadas, setColapsadas] = useState<Set<string>>(new Set());
 
+  // transacoes JÁ vem filtrada por período pelo server. Aqui só filtra por tipo/entidade.
   const filtradas = useMemo(() => {
     return transacoes.filter((t) => {
       if (filtroTipo !== "todos" && t.tipo !== filtroTipo) return false;
@@ -61,20 +67,51 @@ export function TransacoesClient({
     });
   }, [transacoes, filtroTipo, filtroEntidade]);
 
-  const totaisMes = useMemo(() => {
-    const inicio = new Date();
-    inicio.setDate(1);
-    inicio.setHours(0, 0, 0, 0);
-    const inicioISO = inicio.toISOString().slice(0, 10);
+  const totais = useMemo(() => {
     let despesas = 0, receitas = 0;
-    for (const t of transacoes) {
-      if (t.data_competencia < inicioISO) continue;
+    for (const t of filtradas) {
       if (t.status === "cancelada") continue;
       if (t.tipo === "despesa") despesas += Number(t.valor);
       else receitas += Number(t.valor);
     }
     return { despesas, receitas, saldo: receitas - despesas };
-  }, [transacoes]);
+  }, [filtradas]);
+
+  // Agrupa por categoria_id (com 'sem' pra transações sem categoria)
+  const agrupadas = useMemo(() => {
+    if (!agrupar) return null;
+    const map = new Map<string, { categoria: CatLite | null; itens: Transacao[]; total: number; despesa: number; receita: number }>();
+    for (const t of filtradas) {
+      const key = t.categoria_id ?? "sem";
+      if (!map.has(key)) {
+        const cat = t.categoria_id ? categorias.find((c) => c.id === t.categoria_id) ?? null : null;
+        map.set(key, { categoria: cat, itens: [], total: 0, despesa: 0, receita: 0 });
+      }
+      const g = map.get(key)!;
+      g.itens.push(t);
+      if (t.status !== "cancelada") {
+        if (t.tipo === "despesa") g.despesa += Number(t.valor);
+        else g.receita += Number(t.valor);
+      }
+      g.total = g.despesa + g.receita;
+    }
+    return [...map.entries()].sort((a, b) => b[1].total - a[1].total);
+  }, [filtradas, categorias, agrupar]);
+
+  function toggleCat(catKey: string) {
+    setColapsadas((s) => {
+      const next = new Set(s);
+      if (next.has(catKey)) next.delete(catKey);
+      else next.add(catKey);
+      return next;
+    });
+  }
+
+  const periodoLabel =
+    periodo === "proximos" ? "próximos meses" :
+    periodo === "personalizado" ? "período" :
+    periodo === "todos" ? "histórico" :
+    "mês";
 
   return (
     <div>
@@ -82,16 +119,19 @@ export function TransacoesClient({
         titulo="Transações"
         descricao="Lançamentos pontuais (sem ser recorrência). Suporta parcelamento e vínculo com cartão ou conta."
         acao={
-          <Button onClick={() => { setEditing(null); setOpen(true); }} disabled={entidades.length === 0}>
-            <Plus className="w-4 h-4" /> Nova transação
-          </Button>
+          <div className="flex items-center gap-3">
+            <PeriodoFilter current={periodo} />
+            <Button onClick={() => { setEditing(null); setOpen(true); }} disabled={entidades.length === 0}>
+              <Plus className="w-4 h-4" /> Nova transação
+            </Button>
+          </div>
         }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Stat label="Receitas (mês)" value={formatBRL(totaisMes.receitas)} icon={TrendingUp} color="text-emerald-400" />
-        <Stat label="Despesas (mês)" value={formatBRL(totaisMes.despesas)} icon={TrendingDown} color="text-rose-400" />
-        <Stat label="Saldo (mês)" value={formatBRL(totaisMes.saldo)} icon={TrendingUp} color={totaisMes.saldo >= 0 ? "text-emerald-400" : "text-rose-400"} />
+        <Stat label={`Receitas (${periodoLabel})`} value={formatBRL(totais.receitas)} icon={TrendingUp} color="text-emerald-400" />
+        <Stat label={`Despesas (${periodoLabel})`} value={formatBRL(totais.despesas)} icon={TrendingDown} color="text-rose-400" />
+        <Stat label={`Saldo (${periodoLabel})`} value={formatBRL(totais.saldo)} icon={TrendingUp} color={totais.saldo >= 0 ? "text-emerald-400" : "text-rose-400"} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -113,16 +153,40 @@ export function TransacoesClient({
             {entidades.map((e) => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
           </SelectContent>
         </Select>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setAgrupar(true)}
+            className={"px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1 " + (agrupar ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700")}
+            title="Agrupar por categoria"
+          >
+            <Tag className="w-3 h-3" /> Categoria
+          </button>
+          <button
+            onClick={() => setAgrupar(false)}
+            className={"px-3 py-1.5 text-xs rounded-lg transition-colors " + (!agrupar ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700")}
+            title="Lista contínua"
+          >
+            Lista
+          </button>
+        </div>
+        {agrupar && agrupadas && agrupadas.length > 0 && (
+          <button
+            onClick={() => setColapsadas(colapsadas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
+            className="px-2 py-1.5 text-[11px] rounded-lg text-gray-400 hover:text-white"
+          >
+            {colapsadas.size === agrupadas.length ? "Expandir tudo" : "Recolher tudo"}
+          </button>
+        )}
         <span className="text-xs text-gray-500 ml-auto">
-          {filtradas.length} transação{filtradas.length === 1 ? "" : "ões"} (últimos 90 dias)
+          {filtradas.length} transação{filtradas.length === 1 ? "" : "ões"}
         </span>
       </div>
 
       {filtradas.length === 0 ? (
         <EmptyState
           icon={TrendingDown}
-          titulo="Nenhuma transação"
-          descricao="Começa cadastrando uma despesa ou receita."
+          titulo="Nenhuma transação neste período"
+          descricao="Tenta outro filtro ou cadastra uma nova transação."
           acao={entidades.length > 0 && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="w-4 h-4" /> Criar</Button>}
         />
       ) : (
@@ -130,9 +194,9 @@ export function TransacoesClient({
           <table className="w-full">
             <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
               <tr>
-                <th className="text-left px-4 py-3">Data</th>
+                <th className="text-left px-4 py-3 w-24">Data</th>
                 <th className="text-left px-4 py-3">Descrição</th>
-                <th className="text-left px-4 py-3">Categoria</th>
+                {!agrupar && <th className="text-left px-4 py-3">Categoria</th>}
                 <th className="text-left px-4 py-3">Pagamento</th>
                 <th className="text-right px-4 py-3">Valor</th>
                 <th className="text-center px-4 py-3">Status</th>
@@ -140,17 +204,62 @@ export function TransacoesClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {filtradas.map((t) => (
-                <Row
-                  key={t.id}
-                  tx={t}
-                  categoria={categorias.find((c) => c.id === t.categoria_id)}
-                  entidade={entidades.find((e) => e.id === t.entidade_id)}
-                  cartao={cartoes.find((c) => c.id === t.cartao_id)}
-                  conta={contas.find((c) => c.id === t.conta_id)}
-                  onEdit={() => { setEditing(t); setOpen(true); }}
-                />
-              ))}
+              {agrupar && agrupadas
+                ? agrupadas.map(([key, g]) => {
+                    const colapsado = colapsadas.has(key);
+                    const colSpan = 6;
+                    return (
+                      <Fragment key={key}>
+                        <tr
+                          className="bg-gray-800/40 hover:bg-gray-800/60 cursor-pointer"
+                          onClick={() => toggleCat(key)}
+                        >
+                          <td colSpan={colSpan} className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              {colapsado ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                              {g.categoria ? (
+                                <>
+                                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria.cor_hex ?? "#6b7280" }} />
+                                  <span className="text-sm font-medium text-white">{g.categoria.nome}</span>
+                                </>
+                              ) : (
+                                <span className="text-sm font-medium text-gray-400 italic">Sem categoria</span>
+                              )}
+                              <span className="text-[10px] text-gray-500 ml-1">({g.itens.length})</span>
+                              <div className="ml-auto flex items-center gap-3 text-xs font-mono">
+                                {g.despesa > 0 && <span className="text-rose-400">−{formatBRL(g.despesa)}</span>}
+                                {g.receita > 0 && <span className="text-emerald-400">+{formatBRL(g.receita)}</span>}
+                              </div>
+                            </div>
+                          </td>
+                          <td></td>
+                        </tr>
+                        {!colapsado && g.itens.map((t) => (
+                          <Row
+                            key={t.id}
+                            tx={t}
+                            categoria={categorias.find((c) => c.id === t.categoria_id)}
+                            entidade={entidades.find((e) => e.id === t.entidade_id)}
+                            cartao={cartoes.find((c) => c.id === t.cartao_id)}
+                            conta={contas.find((c) => c.id === t.conta_id)}
+                            onEdit={() => { setEditing(t); setOpen(true); }}
+                            hideCategoria
+                          />
+                        ))}
+                      </Fragment>
+                    );
+                  })
+                : filtradas.map((t) => (
+                    <Row
+                      key={t.id}
+                      tx={t}
+                      categoria={categorias.find((c) => c.id === t.categoria_id)}
+                      entidade={entidades.find((e) => e.id === t.entidade_id)}
+                      cartao={cartoes.find((c) => c.id === t.cartao_id)}
+                      conta={contas.find((c) => c.id === t.conta_id)}
+                      onEdit={() => { setEditing(t); setOpen(true); }}
+                    />
+                  ))}
             </tbody>
           </table>
         </div>
@@ -190,6 +299,7 @@ function Row({
   cartao,
   conta,
   onEdit,
+  hideCategoria,
 }: {
   tx: Transacao;
   categoria?: CatLite;
@@ -197,6 +307,7 @@ function Row({
   cartao?: CartLite;
   conta?: ContaLite;
   onEdit: () => void;
+  hideCategoria?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -263,14 +374,16 @@ function Row({
           </div>
         </div>
       </td>
-      <td className="px-4 py-3">
-        {categoria ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: categoria.cor_hex ?? "#6b7280" }} />
-            <span className="text-sm text-gray-300">{categoria.nome}</span>
-          </div>
-        ) : <span className="text-xs text-gray-600">—</span>}
-      </td>
+      {!hideCategoria && (
+        <td className="px-4 py-3">
+          {categoria ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: categoria.cor_hex ?? "#6b7280" }} />
+              <span className="text-sm text-gray-300">{categoria.nome}</span>
+            </div>
+          ) : <span className="text-xs text-gray-600">—</span>}
+        </td>
+      )}
       <td className="px-4 py-3 text-sm text-gray-400">{meioPag}</td>
       <td className="px-4 py-3 text-right text-sm font-mono text-white whitespace-nowrap">
         {tx.tipo === "despesa" ? "−" : "+"} {formatBRL(tx.valor)}

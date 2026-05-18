@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   CartaoCredito, Categoria, ContaBancaria, Entidade, Fornecedor,
   FormaPagamento, FrequenciaRecorrencia, Recorrencia, TipoTransacao, TipoValorRecorrencia,
 } from "@/lib/types/database";
-import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Banknote, PiggyBank } from "lucide-react";
+import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Banknote, PiggyBank, ChevronDown, ChevronRight, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +91,36 @@ export function RecorrenciasClient({
   }, [buckets]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recorrencia | null>(null);
+  const [agrupar, setAgrupar] = useState(true);
+  const [colapsadas, setColapsadas] = useState<Set<string>>(new Set());
+
+  // Agrupa recorrências por categoria_id
+  const agrupadas = useMemo(() => {
+    if (!agrupar) return null;
+    const map = new Map<string, { categoria: CatLite | null; itens: Recorrencia[]; total: number }>();
+    for (const r of recorrencias) {
+      const key = r.categoria_id ?? "sem";
+      if (!map.has(key)) {
+        const cat = r.categoria_id ? categorias.find((c) => c.id === r.categoria_id) ?? null : null;
+        map.set(key, { categoria: cat, itens: [], total: 0 });
+      }
+      const g = map.get(key)!;
+      g.itens.push(r);
+      if (r.ativo && r.frequencia === "mensal") {
+        g.total += r.tipo === "despesa" ? Number(r.valor_padrao) : -Number(r.valor_padrao);
+      }
+    }
+    return [...map.entries()].sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total));
+  }, [recorrencias, categorias, agrupar]);
+
+  function toggleCat(catKey: string) {
+    setColapsadas((s) => {
+      const next = new Set(s);
+      if (next.has(catKey)) next.delete(catKey);
+      else next.add(catKey);
+      return next;
+    });
+  }
 
   const totalDespesasMensais = useMemo(
     () =>
@@ -138,6 +168,34 @@ export function RecorrenciasClient({
         </div>
       )}
 
+      {recorrencias.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setAgrupar(true)}
+            className={"px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1 " + (agrupar ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700")}
+          >
+            <Tag className="w-3 h-3" /> Categoria
+          </button>
+          <button
+            onClick={() => setAgrupar(false)}
+            className={"px-3 py-1.5 text-xs rounded-lg transition-colors " + (!agrupar ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700")}
+          >
+            Lista
+          </button>
+          {agrupar && agrupadas && agrupadas.length > 0 && (
+            <button
+              onClick={() => setColapsadas(colapsadas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
+              className="px-2 py-1.5 text-[11px] rounded-lg text-gray-400 hover:text-white"
+            >
+              {colapsadas.size === agrupadas.length ? "Expandir tudo" : "Recolher tudo"}
+            </button>
+          )}
+          <span className="text-xs text-gray-500 ml-auto">
+            {recorrencias.length} recorrência{recorrencias.length === 1 ? "" : "s"}
+          </span>
+        </div>
+      )}
+
       {recorrencias.length === 0 ? (
         <EmptyState
           icon={Repeat}
@@ -156,7 +214,7 @@ export function RecorrenciasClient({
               <tr>
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-center px-4 py-3">Tipo</th>
-                <th className="text-left px-4 py-3">Categoria</th>
+                {!agrupar && <th className="text-left px-4 py-3">Categoria</th>}
                 <th className="text-center px-4 py-3">Vence</th>
                 <th className="text-center px-4 py-3">Freq.</th>
                 <th className="text-right px-4 py-3 w-72">Valor / Realizado</th>
@@ -165,16 +223,57 @@ export function RecorrenciasClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {recorrencias.map((r) => (
-                <Row
-                  key={r.id}
-                  rec={r}
-                  entidade={entidades.find((e) => e.id === r.entidade_id)}
-                  categoria={categorias.find((c) => c.id === r.categoria_id)}
-                  bucket={bucketsByRec.get(r.id)}
-                  onEdit={() => { setEditing(r); setOpen(true); }}
-                />
-              ))}
+              {agrupar && agrupadas
+                ? agrupadas.map(([key, g]) => {
+                    const colapsado = colapsadas.has(key);
+                    return (
+                      <Fragment key={key}>
+                        <tr
+                          className="bg-gray-800/40 hover:bg-gray-800/60 cursor-pointer"
+                          onClick={() => toggleCat(key)}
+                        >
+                          <td colSpan={7} className="px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              {colapsado ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                              {g.categoria ? (
+                                <>
+                                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria.cor_hex ?? "#6b7280" }} />
+                                  <span className="text-sm font-medium text-white">{g.categoria.nome}</span>
+                                </>
+                              ) : (
+                                <span className="text-sm font-medium text-gray-400 italic">Sem categoria</span>
+                              )}
+                              <span className="text-[10px] text-gray-500 ml-1">({g.itens.length})</span>
+                              <span className={`ml-auto text-xs font-mono ${g.total >= 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                                {g.total >= 0 ? "−" : "+"}{formatBRL(Math.abs(g.total))}/mês
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {!colapsado && g.itens.map((r) => (
+                          <Row
+                            key={r.id}
+                            rec={r}
+                            entidade={entidades.find((e) => e.id === r.entidade_id)}
+                            categoria={categorias.find((c) => c.id === r.categoria_id)}
+                            bucket={bucketsByRec.get(r.id)}
+                            onEdit={() => { setEditing(r); setOpen(true); }}
+                            hideCategoria
+                          />
+                        ))}
+                      </Fragment>
+                    );
+                  })
+                : recorrencias.map((r) => (
+                    <Row
+                      key={r.id}
+                      rec={r}
+                      entidade={entidades.find((e) => e.id === r.entidade_id)}
+                      categoria={categorias.find((c) => c.id === r.categoria_id)}
+                      bucket={bucketsByRec.get(r.id)}
+                      onEdit={() => { setEditing(r); setOpen(true); }}
+                    />
+                  ))}
             </tbody>
           </table>
         </div>
@@ -201,12 +300,14 @@ function Row({
   categoria,
   bucket,
   onEdit,
+  hideCategoria,
 }: {
   rec: Recorrencia;
   entidade?: EntLite;
   categoria?: CatLite;
   bucket?: BucketRealizado;
   onEdit: () => void;
+  hideCategoria?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -265,14 +366,16 @@ function Row({
           {tipoValor === "bucket" ? "Bucket" : tipoValor === "variavel" ? "Variável" : "Fixo"}
         </span>
       </td>
-      <td className="px-4 py-3">
-        {categoria ? (
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: categoria.cor_hex ?? "#6b7280" }} />
-            <span className="text-sm text-gray-300">{categoria.nome}</span>
-          </div>
-        ) : <span className="text-xs text-gray-600">—</span>}
-      </td>
+      {!hideCategoria && (
+        <td className="px-4 py-3">
+          {categoria ? (
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: categoria.cor_hex ?? "#6b7280" }} />
+              <span className="text-sm text-gray-300">{categoria.nome}</span>
+            </div>
+          ) : <span className="text-xs text-gray-600">—</span>}
+        </td>
+      )}
       <td className="px-4 py-3 text-center text-sm font-mono text-gray-300">
         {isBucket ? "—" : `dia ${rec.dia_vencimento}`}
       </td>

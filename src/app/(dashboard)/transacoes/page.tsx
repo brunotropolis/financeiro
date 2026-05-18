@@ -4,21 +4,48 @@ import { TransacoesClient } from "./transacoes-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function TransacoesPage() {
-  const db = await dbServer();
+type Periodo = "atual" | "proximos" | "personalizado" | "todos";
 
-  // Últimos 90 dias por padrão
-  const limite = new Date();
-  limite.setDate(limite.getDate() - 90);
-  const limiteISO = limite.toISOString().slice(0, 10);
+function getRange(p: Periodo, inicio?: string, fim?: string): { gte?: string; lte?: string } {
+  const now = new Date();
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  if (p === "todos") return {};
+  if (p === "proximos") {
+    return { gte: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10) };
+  }
+  if (p === "personalizado" && inicio && fim) {
+    return { gte: inicio, lte: fim };
+  }
+  // atual (default)
+  return { gte: inicioMes, lte: fimMes };
+}
+
+export default async function TransacoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string; inicio?: string; fim?: string }>;
+}) {
+  const params = await searchParams;
+  const periodo: Periodo =
+    params.p === "proximos" ? "proximos" :
+    params.p === "personalizado" ? "personalizado" :
+    params.p === "todos" ? "todos" :
+    "atual";
+  const range = getRange(periodo, params.inicio, params.fim);
+
+  const db = await dbServer();
+  let query = db.from("transacoes")
+    .select("*")
+    .order("data_competencia", { ascending: false })
+    .order("criado_em", { ascending: false })
+    .limit(periodo === "todos" ? 2000 : 500);
+  if (range.gte) query = query.gte("data_competencia", range.gte);
+  if (range.lte) query = query.lte("data_competencia", range.lte);
 
   const [txRes, entRes, catRes, fornRes, cartRes, contaRes] = await Promise.all([
-    db.from("transacoes")
-      .select("*")
-      .gte("data_competencia", limiteISO)
-      .order("data_competencia", { ascending: false })
-      .order("criado_em", { ascending: false })
-      .limit(500),
+    query,
     db.from("entidades").select("id,nome,tipo,cor_hex,ativo,ordem").eq("ativo", true).order("ordem"),
     db.from("categorias").select("id,nome,tipo,cor_hex,ativo").eq("ativo", true).order("nome"),
     db.from("fornecedores").select("id,nome,ativo,categoria_padrao_id,entidade_padrao_id").eq("ativo", true).order("nome"),
@@ -34,6 +61,7 @@ export default async function TransacoesPage() {
       fornecedores={(fornRes.data ?? []) as Pick<Fornecedor, "id" | "nome" | "ativo" | "categoria_padrao_id" | "entidade_padrao_id">[]}
       cartoes={(cartRes.data ?? []) as Pick<CartaoCredito, "id" | "nome" | "entidade_id" | "ativo">[]}
       contas={(contaRes.data ?? []) as Pick<ContaBancaria, "id" | "nome" | "banco" | "entidade_id" | "ativo">[]}
+      periodo={periodo}
     />
   );
 }
