@@ -70,14 +70,20 @@ export default async function DespesasResumoPage({
     .from("categorias")
     .select("id, nome, cor_hex");
 
-  const transacoes = txData ?? [];
-  const recorrencias = recData ?? [];
-  const categorias = catData ?? [];
-  const catMap = new Map(categorias.map((c) => [c.id, c]));
+  type TxRow = { valor: number; categoria_id: string | null; recorrencia_id: string | null; status: string };
+  type RecRow = { id: string; valor_padrao: number; categoria_id: string | null; frequencia: string; tipo_valor: string };
+  type CatRow = { id: string; nome: string; cor_hex: string | null };
+
+  const transacoes = (txData ?? []) as TxRow[];
+  const recorrencias = (recData ?? []) as RecRow[];
+  const categorias = (catData ?? []) as CatRow[];
+  const catMap = new Map<string, CatRow>(categorias.map((c) => [c.id, c]));
 
   // Set de recorrências que JÁ geraram transação no período (pra evitar double-count)
-  const recsMaterializadas = new Set(
-    transacoes.filter((t) => t.recorrencia_id).map((t) => t.recorrencia_id),
+  const recsMaterializadas = new Set<string>(
+    transacoes
+      .filter((t): t is TxRow & { recorrencia_id: string } => t.recorrencia_id !== null)
+      .map((t) => t.recorrencia_id),
   );
 
   // Agrega por categoria
