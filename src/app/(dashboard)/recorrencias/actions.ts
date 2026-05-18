@@ -15,6 +15,7 @@ export type RecorrenciaInput = {
   pode_pular?: boolean;
   frequencia: FrequenciaRecorrencia;
   entidade_id: string;
+  projeto_id?: string | null;
   categoria_id?: string | null;
   fornecedor_id?: string | null;
   forma_pagamento?: FormaPagamento | null;
@@ -47,6 +48,7 @@ export async function salvarRecorrencia(input: RecorrenciaInput) {
     pode_pular: input.pode_pular ?? false,
     frequencia: input.frequencia,
     entidade_id: input.entidade_id,
+    projeto_id: input.projeto_id || null,
     categoria_id: input.categoria_id || null,
     fornecedor_id: input.fornecedor_id || null,
     forma_pagamento: input.forma_pagamento || null,

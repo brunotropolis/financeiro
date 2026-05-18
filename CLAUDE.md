@@ -283,6 +283,7 @@ nslookup financeiro.brunotropolis.com.br meg.ns.cloudflare.com
 5. `005_greenn_saldos.sql` — tabela `greenn_saldos` (snapshot histórico do print: disponivel/pendente/antecipavel/capturado_em) + view `v_greenn_saldo_atual` (último snapshot)
 6. `006_add_magalu_origem.sql` — adiciona `magalu_aff` ao enum origem_receita (legacy, agora a tabela `origens_receita` é a fonte de verdade)
 7. `007_origens_receita_tabela.sql` — tabela `origens_receita` (slug/nome/cor/ordem/ativo) populada com valores do enum + Magalu + Bruno adiciona novos pela UI. Coluna `receitas_brutas.origem_id` FK com backfill pelo slug. Trigger updated_at + policies RLS
+8. `008_projetos.sql` — tabela `projetos` (Manual do Recém-Nascido, As Ofertas Maternas, Brunotropolis, Pessoal) + coluna `projeto_id` (nullable, FK) em `transacoes`, `receitas_brutas` e `recorrencias`. Permite calcular margem de lucro por iniciativa comercial (ortogonal a entidade, que é PF/PJ fiscal)
 
 ### Política permanente
 - **SEMPRE disparar deploy manual no EasyPanel após push** — auto-deploy não confiável
@@ -578,6 +579,7 @@ Mesmo padrão em `/recorrencias`. Estado de colapsadas só no client (não persi
 | `src/app/(dashboard)/receitas/periodo-filter.tsx` | Filtro Mês/Próximos/Personalizado/Todos + toggle Competência/Caixa |
 | `src/app/(dashboard)/receitas/greenn-saldo-card.tsx` | Modal de paste de print (`SaldoModal` exportada pra reuso) |
 | `src/app/(dashboard)/origens/{page,actions,origens-client}.tsx` | CRUD de origens |
+| `src/app/(dashboard)/projetos/{page,actions,projetos-client}.tsx` | CRUD de projetos (margem) |
 | `src/app/(dashboard)/transacoes/periodo-filter.tsx` | Filtro Mês/Próximos/Personalizado/Todos |
 | `src/app/icon.svg` | Favicon emoji 💰 (Next.js detecta automaticamente) |
 | `src/lib/formatters.ts` (adições) | `parseBRL`, `formatBRLEditable`, `maskBRLInput` |
@@ -586,6 +588,26 @@ Mesmo padrão em `/recorrencias`. Estado de colapsadas só no client (não persi
 
 - **Categorias colapsadas por padrão** em `/transacoes` e `/recorrencias` (invertido state pra `expandidas: Set<string>` que começa vazio). Botão "Expandir tudo / Recolher tudo" troca de label conforme o estado.
 - **Rebrand**: `metadata.title` virou "Gerenciador Financeiro" (sem "Bruno Tropolis"). Sidebar mostra "💰 Gerenciador / Financeiro". Telas de auth mostram "💰 Gerenciador Financeiro". Favicon 💰 via SVG inline (Next.js detecta `src/app/icon.svg`).
+
+### 8. Projetos — margem de lucro por iniciativa
+
+**Conceito chave que clarificou nesta sprint:**
+- **Entidade** = PF/PJ fiscal (quem paga/recebe) — Bruno PF, Day PF, Manual RN PJ, Dream Baby PJ, MRN Serviços PJ
+- **Projeto** = iniciativa comercial (a marca/produto) — Manual do Recém-Nascido, As Ofertas Maternas, Brunotropolis, Pessoal
+
+Uma PJ pode tocar vários projetos. Um projeto pode ter despesas pagas por entidades diferentes. Por isso projeto é **ortogonal** a entidade.
+
+**Migration 008**: tabela `projetos` (slug, nome, cor_hex, ativo, ordem) + coluna `projeto_id` nullable em `transacoes`, `receitas_brutas`, `recorrencias`. 4 projetos populados de cara.
+
+**Tela `/projetos`**: CRUD completo (slug auto do nome). Mesmo padrão de `/origens`.
+
+**Forms (receita, transação, recorrência)**: ganham select "Projeto" — opcional. Bolinha colorida + nome do projeto. Link "+ Gerenciar projetos" no help text.
+
+**Filtros (`/receitas` e `/transacoes`)**: select "Todos os projetos | [lista] | — sem projeto —" agrupado com filtro de origem/entidade. Permite tipo "ver tudo do Manual do Recém-Nascido".
+
+**Tabela `/receitas`**: ganha coluna **Projeto** entre Origem e Produto, mostrando bolinha de cor + nome (ou "—" quando sem projeto). Tabela de transações mantém só o filtro por enquanto (evita poluição com mais uma coluna; visível no edit).
+
+**Sidebar**: link "Projetos" em Cadastros (ícone Briefcase).
 
 ### Pendências da próxima sessão
 

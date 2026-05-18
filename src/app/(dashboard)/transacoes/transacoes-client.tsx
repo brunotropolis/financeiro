@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   CartaoCredito, Categoria, ContaBancaria, Entidade, Fornecedor,
-  FormaPagamento, Transacao, TipoTransacao,
+  FormaPagamento, ProjetoRow, Transacao, TipoTransacao,
 } from "@/lib/types/database";
 import { TrendingDown, TrendingUp, Plus, Pencil, Trash2, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Tag } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
@@ -41,6 +41,7 @@ export function TransacoesClient({
   fornecedores,
   cartoes,
   contas,
+  projetos,
   periodo,
 }: {
   transacoes: Transacao[];
@@ -49,23 +50,35 @@ export function TransacoesClient({
   fornecedores: FornLite[];
   cartoes: CartLite[];
   contas: ContaLite[];
+  projetos: ProjetoRow[];
   periodo: "atual" | "proximos" | "personalizado" | "todos";
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Transacao | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoTransacao>("todos");
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todas");
+  const [filtroProjeto, setFiltroProjeto] = useState<string>("todos");
   const [agrupar, setAgrupar] = useState(true);
   const [expandidas, setExpandidas] = useState<Set<string>>(new Set()); // categorias abertas (default = todas fechadas)
 
-  // transacoes JÁ vem filtrada por período pelo server. Aqui só filtra por tipo/entidade.
+  const projetoById = useMemo(() => {
+    const m = new Map<string, ProjetoRow>();
+    for (const p of projetos) m.set(p.id, p);
+    return m;
+  }, [projetos]);
+
+  // transacoes JÁ vem filtrada por período pelo server. Aqui só filtra por tipo/entidade/projeto.
   const filtradas = useMemo(() => {
     return transacoes.filter((t) => {
       if (filtroTipo !== "todos" && t.tipo !== filtroTipo) return false;
       if (filtroEntidade !== "todas" && t.entidade_id !== filtroEntidade) return false;
+      if (filtroProjeto !== "todos") {
+        if (filtroProjeto === "__sem__" && t.projeto_id) return false;
+        if (filtroProjeto !== "__sem__" && t.projeto_id !== filtroProjeto) return false;
+      }
       return true;
     });
-  }, [transacoes, filtroTipo, filtroEntidade]);
+  }, [transacoes, filtroTipo, filtroEntidade, filtroProjeto]);
 
   const totais = useMemo(() => {
     let despesas = 0, receitas = 0;
@@ -147,10 +160,18 @@ export function TransacoesClient({
           ))}
         </div>
         <Select value={filtroEntidade} onValueChange={setFiltroEntidade}>
-          <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as entidades</SelectItem>
             {entidades.map((e) => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filtroProjeto} onValueChange={setFiltroProjeto}>
+          <SelectTrigger className="w-44 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os projetos</SelectItem>
+            {projetos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+            <SelectItem value="__sem__">— sem projeto —</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex gap-1">
@@ -274,6 +295,7 @@ export function TransacoesClient({
         fornecedores={fornecedores}
         cartoes={cartoes}
         contas={contas}
+        projetos={projetos}
         onSaved={() => setOpen(false)}
       />
     </div>
@@ -418,6 +440,7 @@ function TransacaoFormDialog({
   fornecedores,
   cartoes,
   contas,
+  projetos,
   onSaved,
 }: {
   open: boolean;
@@ -428,6 +451,7 @@ function TransacaoFormDialog({
   fornecedores: FornLite[];
   cartoes: CartLite[];
   contas: ContaLite[];
+  projetos: ProjetoRow[];
   onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -438,6 +462,7 @@ function TransacaoFormDialog({
   const [valor, setValor] = useState("0");
   const [dataComp, setDataComp] = useState(new Date().toISOString().slice(0, 10));
   const [entidadeId, setEntidadeId] = useState("");
+  const [projetoId, setProjetoId] = useState("");
   const [catId, setCatId] = useState("");
   const [fornId, setFornId] = useState("");
   const [forma, setForma] = useState<FormaPagamento | "">("");
@@ -454,6 +479,7 @@ function TransacaoFormDialog({
     setValor(transacao ? String(transacao.valor) : "0");
     setDataComp(transacao?.data_competencia ?? new Date().toISOString().slice(0, 10));
     setEntidadeId(transacao?.entidade_id ?? entidades[0]?.id ?? "");
+    setProjetoId(transacao?.projeto_id ?? "");
     setCatId(transacao?.categoria_id ?? "");
     setFornId(transacao?.fornecedor_id ?? "");
     setForma((transacao?.forma_pagamento as FormaPagamento) ?? "");
@@ -502,6 +528,7 @@ function TransacaoFormDialog({
       valor: v,
       data_competencia: dataComp,
       entidade_id: entidadeId,
+      projeto_id: projetoId || null,
       categoria_id: catId || null,
       fornecedor_id: fornId || null,
       forma_pagamento: (forma || null) as FormaPagamento | null,
@@ -571,6 +598,27 @@ function TransacaoFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label>Projeto</Label>
+            <Select value={projetoId || "__none__"} onValueChange={(v) => setProjetoId(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem projeto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— sem projeto —</SelectItem>
+                {projetos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: p.cor_hex ?? "#6b7280" }} />
+                      {p.nome}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Qual iniciativa comercial gerou esta despesa/receita. <a href="/projetos" target="_blank" className="text-blue-400 hover:text-blue-300">+ Gerenciar projetos</a>
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

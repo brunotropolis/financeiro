@@ -12,6 +12,7 @@ export type TransacaoInput = {
   data_competencia: string;
   data_pagamento?: string | null;
   entidade_id: string;
+  projeto_id?: string | null;
   categoria_id?: string | null;
   fornecedor_id?: string | null;
   forma_pagamento?: FormaPagamento | null;
@@ -43,6 +44,7 @@ export async function salvarTransacao(input: TransacaoInput) {
       data_competencia: input.data_competencia,
       data_pagamento: input.data_pagamento || null,
       entidade_id: input.entidade_id,
+      projeto_id: input.projeto_id || null,
       categoria_id: input.categoria_id || null,
       fornecedor_id: input.fornecedor_id || null,
       forma_pagamento: input.forma_pagamento || null,
@@ -113,6 +115,7 @@ export async function salvarTransacao(input: TransacaoInput) {
       data_competencia: input.data_competencia,
       data_pagamento: input.data_pagamento || null,
       entidade_id: input.entidade_id,
+      projeto_id: input.projeto_id || null,
       categoria_id: input.categoria_id || null,
       fornecedor_id: input.fornecedor_id || null,
       forma_pagamento: input.forma_pagamento || null,

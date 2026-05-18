@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   CartaoCredito, Categoria, ContaBancaria, Entidade, Fornecedor,
-  FormaPagamento, FrequenciaRecorrencia, Recorrencia, TipoTransacao, TipoValorRecorrencia,
+  FormaPagamento, FrequenciaRecorrencia, ProjetoRow, Recorrencia, TipoTransacao, TipoValorRecorrencia,
 } from "@/lib/types/database";
 import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Banknote, PiggyBank, ChevronDown, ChevronRight, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ export function RecorrenciasClient({
   cartoes,
   contas,
   buckets,
+  projetos,
 }: {
   recorrencias: Recorrencia[];
   entidades: EntLite[];
@@ -83,6 +84,7 @@ export function RecorrenciasClient({
   cartoes: CartLite[];
   contas: ContaLite[];
   buckets: BucketRealizado[];
+  projetos: ProjetoRow[];
 }) {
   const bucketsByRec = useMemo(() => {
     const m = new Map<string, BucketRealizado>();
@@ -288,6 +290,7 @@ export function RecorrenciasClient({
         fornecedores={fornecedores}
         cartoes={cartoes}
         contas={contas}
+        projetos={projetos}
         onSaved={() => setOpen(false)}
       />
     </div>
@@ -424,6 +427,7 @@ function RecorrenciaFormDialog({
   fornecedores,
   cartoes,
   contas,
+  projetos,
   onSaved,
 }: {
   open: boolean;
@@ -434,6 +438,7 @@ function RecorrenciaFormDialog({
   fornecedores: FornLite[];
   cartoes: CartLite[];
   contas: ContaLite[];
+  projetos: ProjetoRow[];
   onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
@@ -448,6 +453,7 @@ function RecorrenciaFormDialog({
   const [podePular, setPodePular] = useState(false);
   const [freq, setFreq] = useState<FrequenciaRecorrencia>("mensal");
   const [entidadeId, setEntidadeId] = useState("");
+  const [projetoId, setProjetoId] = useState("");
   const [catId, setCatId] = useState("");
   const [fornId, setFornId] = useState("");
   const [forma, setForma] = useState<FormaPagamento | "">("");
@@ -468,6 +474,7 @@ function RecorrenciaFormDialog({
     setPodePular(recorrencia?.pode_pular ?? false);
     setFreq((recorrencia?.frequencia as FrequenciaRecorrencia) ?? "mensal");
     setEntidadeId(recorrencia?.entidade_id ?? entidades[0]?.id ?? "");
+    setProjetoId(recorrencia?.projeto_id ?? "");
     setCatId(recorrencia?.categoria_id ?? "");
     setFornId(recorrencia?.fornecedor_id ?? "");
     setForma((recorrencia?.forma_pagamento as FormaPagamento) ?? "");
@@ -520,6 +527,7 @@ function RecorrenciaFormDialog({
       pode_pular: podePular,
       frequencia: isBucket ? "mensal" : freq,
       entidade_id: entidadeId,
+      projeto_id: projetoId || null,
       categoria_id: catId || null,
       fornecedor_id: fornId || null,
       forma_pagamento: isBucket ? null : ((forma || null) as FormaPagamento | null),
@@ -670,6 +678,27 @@ function RecorrenciaFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label>Projeto</Label>
+            <Select value={projetoId || "__none__"} onValueChange={(v) => setProjetoId(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem projeto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— sem projeto —</SelectItem>
+                {projetos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: p.cor_hex ?? "#6b7280" }} />
+                      {p.nome}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Qual iniciativa comercial — útil pra calcular margem por projeto. <a href="/projetos" target="_blank" className="text-blue-400 hover:text-blue-300">+ Gerenciar projetos</a>
+            </p>
           </div>
 
           {tipoValor !== "bucket" && (

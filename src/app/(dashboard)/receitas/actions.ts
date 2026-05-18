@@ -8,6 +8,7 @@ export type ReceitaInput = {
   id?: string;
   origem_id: string;       // FK pra origens_receita (preferida)
   origem: OrigemReceita;   // enum slug (compat — derivado do origem_id)
+  projeto_id?: string | null;
   produto_nome?: string | null;
   cliente_nome?: string | null;
   valor_bruto: number;
@@ -39,6 +40,7 @@ export async function salvarReceita(input: ReceitaInput) {
   const payload = {
     origem: input.origem,
     origem_id: input.origem_id,
+    projeto_id: input.projeto_id || null,
     produto_nome: input.produto_nome?.trim() || null,
     cliente_nome: input.cliente_nome?.trim() || null,
     valor_bruto: input.valor_bruto,

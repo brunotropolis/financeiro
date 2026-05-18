@@ -64,6 +64,19 @@ export interface OrigemReceitaRow {
   criado_em: string;
   atualizado_em: string;
 }
+
+/** Projeto = iniciativa comercial (Manual RN, Ofertas Maternas, Brunotropolis, Pessoal).
+ * Ortogonal a entidade (entidade = PF/PJ fiscal; projeto = marca/iniciativa). */
+export interface ProjetoRow {
+  id: string;
+  slug: string;
+  nome: string;
+  cor_hex: string | null;
+  ativo: boolean;
+  ordem: number;
+  criado_em: string;
+  atualizado_em: string;
+}
 export type StatusReceita =
   | "previsto"
   | "confirmado"
@@ -174,6 +187,7 @@ export interface ReceitaBruta {
   origem: OrigemReceita;
   transaction_id_externo: string | null;
   entidade_id: string;
+  projeto_id: string | null;
   produto_nome: string | null;
   produto_id_externo: string | null;
   cliente_nome: string | null;
@@ -209,6 +223,7 @@ export interface Transacao {
   data_competencia: string;
   data_pagamento: string | null;
   entidade_id: string;
+  projeto_id: string | null;
   categoria_id: string | null;
   fornecedor_id: string | null;
   forma_pagamento: FormaPagamento | null;
@@ -237,6 +252,7 @@ export interface Recorrencia {
   nome: string;
   tipo: TipoTransacao;
   tipo_valor: TipoValorRecorrencia;
+  projeto_id: string | null;
   valor_padrao: number;
   dia_vencimento: number;
   frequencia: FrequenciaRecorrencia;

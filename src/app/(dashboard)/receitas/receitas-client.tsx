@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Entidade, OrigemReceita, OrigemReceitaRow, ReceitaBruta, StatusReceita } from "@/lib/types/database";
+import type { Entidade, OrigemReceita, OrigemReceitaRow, ProjetoRow, ReceitaBruta, StatusReceita } from "@/lib/types/database";
 import { TrendingUp, Plus, Pencil, Trash2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
 import { SaldoModal } from "./greenn-saldo-card";
@@ -57,6 +57,7 @@ export function ReceitasClient({
   receitas,
   entidades,
   origens,
+  projetos,
   periodo,
   criterio,
   saldoGreenn,
@@ -66,6 +67,7 @@ export function ReceitasClient({
   receitas: ReceitaBruta[];
   entidades: EntLite[];
   origens: OrigemReceitaRow[];
+  projetos: ProjetoRow[];
   periodo: "atual" | "proximos" | "personalizado" | "todos";
   criterio: "competencia" | "caixa";
   saldoGreenn: { disponivel: number; pendente: number; antecipavel: number; capturado_em: string } | null;
@@ -75,6 +77,7 @@ export function ReceitasClient({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ReceitaBruta | null>(null);
   const [filtroOrigem, setFiltroOrigem] = useState<string>("todas");
+  const [filtroProjeto, setFiltroProjeto] = useState<string>("todos");
   const [greennModalOpen, setGreennModalOpen] = useState(false);
 
   // Mapa slug → row (pra renderizar nome/cor das receitas existentes pelo slug)
@@ -84,9 +87,22 @@ export function ReceitasClient({
     return m;
   }, [origens]);
 
+  const projetoById = useMemo(() => {
+    const m = new Map<string, ProjetoRow>();
+    for (const p of projetos) m.set(p.id, p);
+    return m;
+  }, [projetos]);
+
   const filtradas = useMemo(
-    () => filtroOrigem === "todas" ? receitas : receitas.filter((r) => r.origem === filtroOrigem),
-    [receitas, filtroOrigem]
+    () => receitas.filter((r) => {
+      if (filtroOrigem !== "todas" && r.origem !== filtroOrigem) return false;
+      if (filtroProjeto !== "todos") {
+        if (filtroProjeto === "__sem__" && r.projeto_id) return false;
+        if (filtroProjeto !== "__sem__" && r.projeto_id !== filtroProjeto) return false;
+      }
+      return true;
+    }),
+    [receitas, filtroOrigem, filtroProjeto]
   );
 
   const stats = useMemo(() => {
@@ -157,10 +173,18 @@ export function ReceitasClient({
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={filtroOrigem} onValueChange={setFiltroOrigem}>
-          <SelectTrigger className="w-56 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-48 h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas as origens</SelectItem>
             {origens.map((o) => <SelectItem key={o.id} value={o.slug}>{o.nome}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filtroProjeto} onValueChange={setFiltroProjeto}>
+          <SelectTrigger className="w-48 h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os projetos</SelectItem>
+            {projetos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>)}
+            <SelectItem value="__sem__">— sem projeto —</SelectItem>
           </SelectContent>
         </Select>
         <span className="text-xs text-gray-500 ml-auto">
@@ -173,6 +197,7 @@ export function ReceitasClient({
           <thead className="bg-gray-800/50 text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="text-left px-4 py-3">Origem</th>
+              <th className="text-left px-4 py-3">Projeto</th>
               <th className="text-left px-4 py-3">Produto/Cliente</th>
               <th className="text-center px-4 py-3">Competência</th>
               <th className="text-right px-4 py-3">Faturamento</th>
@@ -199,13 +224,14 @@ export function ReceitasClient({
                 rec={r}
                 entidade={entidades.find((e) => e.id === r.entidade_id)}
                 origem={origemBySlug.get(r.origem)}
+                projeto={r.projeto_id ? projetoById.get(r.projeto_id) : undefined}
                 onEdit={() => { setEditing(r); setOpen(true); }}
               />
             ))}
 
             {filtradas.length === 0 && (filtroOrigem !== "todas" && filtroOrigem !== "greenn") && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                   Nenhuma receita lançada neste período. Clica em &quot;Lançar receita&quot; pra adicionar.
                 </td>
               </tr>
@@ -220,6 +246,7 @@ export function ReceitasClient({
         receita={editing}
         entidades={entidades}
         origens={origens}
+        projetos={projetos}
         onSaved={() => setOpen(false)}
       />
 
@@ -278,6 +305,7 @@ function GreennRow({
           {saldo ? `saldo atualizado há ${tempoRel(saldo.capturado_em)}` : "saldo nunca capturado"}
         </div>
       </td>
+      <td className="px-4 py-3 text-xs text-gray-500">—</td>
       <td className="px-4 py-3">
         <div className="text-sm font-medium text-white">Vendas Greenn — mês atual</div>
         <div className="text-xs text-gray-500">
@@ -330,7 +358,7 @@ function Stat({ label, value, highlight, hint }: { label: string; value: string;
   );
 }
 
-function Row({ rec, entidade, origem, onEdit }: { rec: ReceitaBruta; entidade?: EntLite; origem?: OrigemReceitaRow; onEdit: () => void }) {
+function Row({ rec, entidade, origem, projeto, onEdit }: { rec: ReceitaBruta; entidade?: EntLite; origem?: OrigemReceitaRow; projeto?: ProjetoRow; onEdit: () => void }) {
   const [pending, startTransition] = useTransition();
 
   function deletar() {
@@ -364,6 +392,14 @@ function Row({ rec, entidade, origem, onEdit }: { rec: ReceitaBruta; entidade?: 
         <div className="text-[10px] text-gray-500 mt-0.5 ml-4">
           {formatDate(rec.data_venda)}
         </div>
+      </td>
+      <td className="px-4 py-3">
+        {projeto ? (
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: projeto.cor_hex ?? "#6b7280" }} />
+            <span className="text-[11px] text-gray-400">{projeto.nome}</span>
+          </div>
+        ) : <span className="text-[11px] text-gray-700">—</span>}
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1.5">
@@ -418,6 +454,7 @@ function ReceitaFormDialog({
   receita,
   entidades,
   origens,
+  projetos,
   onSaved,
 }: {
   open: boolean;
@@ -425,12 +462,14 @@ function ReceitaFormDialog({
   receita: ReceitaBruta | null;
   entidades: EntLite[];
   origens: OrigemReceitaRow[];
+  projetos: ProjetoRow[];
   onSaved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
   const [origemId, setOrigemId] = useState("");
+  const [projetoId, setProjetoId] = useState("");
   const [produto, setProduto] = useState("");
   const [cliente, setCliente] = useState("");
   const [valor, setValor] = useState("");
@@ -447,6 +486,7 @@ function ReceitaFormDialog({
     const slugAtual = receita?.origem as string | undefined;
     const matched = slugAtual ? origens.find((o) => o.slug === slugAtual) : null;
     setOrigemId(matched?.id ?? origens.find((o) => o.slug === "publi")?.id ?? origens[0]?.id ?? "");
+    setProjetoId(receita?.projeto_id ?? "");
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
     setValor(receita ? formatBRLEditable(receita.valor_bruto) : "");
@@ -489,6 +529,7 @@ function ReceitaFormDialog({
       id: receita?.id,
       origem: origemEnum,
       origem_id: origemId,
+      projeto_id: projetoId || null,
       produto_nome: produto,
       cliente_nome: cliente,
       valor_bruto: v,
@@ -548,6 +589,27 @@ function ReceitaFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label>Projeto</Label>
+            <Select value={projetoId || "__none__"} onValueChange={(v) => setProjetoId(v === "__none__" ? "" : v)}>
+              <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem projeto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— sem projeto —</SelectItem>
+                {projetos.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: p.cor_hex ?? "#6b7280" }} />
+                      {p.nome}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Qual iniciativa comercial gerou esta receita. <a href="/projetos" target="_blank" className="text-blue-400 hover:text-blue-300">+ Gerenciar projetos</a>
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

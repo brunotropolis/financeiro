@@ -18,6 +18,7 @@ import {
   CalendarRange,
   Upload,
   Target,
+  Briefcase,
 } from "lucide-react";
 
 const navMain = [
@@ -34,6 +35,7 @@ const navCadastros = [
   { href: "/contas", label: "Contas", icon: Wallet },
   { href: "/cartoes", label: "Cartões", icon: CreditCard },
   { href: "/categorias", label: "Categorias", icon: Tag },
+  { href: "/projetos", label: "Projetos", icon: Briefcase },
   { href: "/origens", label: "Origens", icon: TrendingUp },
   { href: "/fornecedores", label: "Fornecedores", icon: Truck },
 ];
