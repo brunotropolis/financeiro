@@ -485,8 +485,11 @@ function ReceitaFormDialog({
     // Encontra origem da receita atual pelo slug, ou primeira ativa como default
     const slugAtual = receita?.origem as string | undefined;
     const matched = slugAtual ? origens.find((o) => o.slug === slugAtual) : null;
-    setOrigemId(matched?.id ?? origens.find((o) => o.slug === "publi")?.id ?? origens[0]?.id ?? "");
-    setProjetoId(receita?.projeto_id ?? "");
+    const origemDefault = matched?.id ?? origens.find((o) => o.slug === "publi")?.id ?? origens[0]?.id ?? "";
+    setOrigemId(origemDefault);
+    // Se não tem projeto setado, pega o padrão da origem
+    const origemRow = origens.find((o) => o.id === origemDefault);
+    setProjetoId(receita?.projeto_id ?? origemRow?.projeto_padrao_id ?? "");
     setProduto(receita?.produto_nome ?? "");
     setCliente(receita?.cliente_nome ?? "");
     setValor(receita ? formatBRLEditable(receita.valor_bruto) : "");
@@ -563,7 +566,12 @@ function ReceitaFormDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Origem</Label>
-              <Select value={origemId} onValueChange={setOrigemId}>
+              <Select value={origemId} onValueChange={(v) => {
+                setOrigemId(v);
+                // Auto-sugest projeto baseado no projeto_padrao da origem
+                const orig = origens.find((o) => o.id === v);
+                if (orig?.projeto_padrao_id && !projetoId) setProjetoId(orig.projeto_padrao_id);
+              }}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   {origens.map((o) => (

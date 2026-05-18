@@ -20,7 +20,7 @@ import { formatBRL, formatDate } from "@/lib/formatters";
 import { salvarTransacao, deletarTransacao, marcarPaga, type TransacaoInput } from "./actions";
 
 type EntLite = Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">;
-type CatLite = Pick<Categoria, "id" | "nome" | "tipo" | "cor_hex" | "ativo">;
+type CatLite = Pick<Categoria, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "projeto_padrao_id">;
 type FornLite = Pick<Fornecedor, "id" | "nome" | "ativo" | "categoria_padrao_id" | "entidade_padrao_id">;
 type CartLite = Pick<CartaoCredito, "id" | "nome" | "entidade_id" | "ativo">;
 type ContaLite = Pick<ContaBancaria, "id" | "nome" | "banco" | "entidade_id" | "ativo">;
@@ -634,7 +634,15 @@ function TransacaoFormDialog({
             </div>
             <div>
               <Label>Categoria</Label>
-              <Select value={catId || "__none__"} onValueChange={(v) => setCatId(v === "__none__" ? "" : v)}>
+              <Select value={catId || "__none__"} onValueChange={(v) => {
+                const newCat = v === "__none__" ? "" : v;
+                setCatId(newCat);
+                // Auto-sugest projeto: se categoria tem projeto_padrao e user ainda não escolheu
+                if (newCat && !projetoId) {
+                  const cat = categorias.find((c) => c.id === newCat);
+                  if (cat?.projeto_padrao_id) setProjetoId(cat.projeto_padrao_id);
+                }
+              }}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem categoria" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— sem categoria —</SelectItem>

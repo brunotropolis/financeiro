@@ -61,6 +61,7 @@ export interface OrigemReceitaRow {
   cor_hex: string | null;
   ativo: boolean;
   ordem: number;
+  projeto_padrao_id: string | null;
   criado_em: string;
   atualizado_em: string;
 }
@@ -159,6 +160,7 @@ export interface Categoria {
   icone: string | null;
   ativo: boolean;
   ordem: number;
+  projeto_padrao_id: string | null;
   criado_em: string;
   atualizado_em: string;
 }

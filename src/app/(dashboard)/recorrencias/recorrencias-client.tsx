@@ -19,7 +19,7 @@ import { formatBRL } from "@/lib/formatters";
 import { salvarRecorrencia, toggleRecorrenciaAtivo, deletarRecorrencia, type RecorrenciaInput } from "./actions";
 
 type EntLite = Pick<Entidade, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "ordem">;
-type CatLite = Pick<Categoria, "id" | "nome" | "tipo" | "cor_hex" | "ativo">;
+type CatLite = Pick<Categoria, "id" | "nome" | "tipo" | "cor_hex" | "ativo" | "projeto_padrao_id">;
 type FornLite = Pick<Fornecedor, "id" | "nome" | "ativo">;
 type CartLite = Pick<CartaoCredito, "id" | "nome" | "entidade_id" | "ativo">;
 type ContaLite = Pick<ContaBancaria, "id" | "nome" | "banco" | "entidade_id" | "ativo">;
@@ -670,7 +670,14 @@ function RecorrenciaFormDialog({
             </div>
             <div>
               <Label>Categoria</Label>
-              <Select value={catId || "__none__"} onValueChange={(v) => setCatId(v === "__none__" ? "" : v)}>
+              <Select value={catId || "__none__"} onValueChange={(v) => {
+                const newCat = v === "__none__" ? "" : v;
+                setCatId(newCat);
+                if (newCat && !projetoId) {
+                  const cat = categorias.find((c) => c.id === newCat);
+                  if (cat?.projeto_padrao_id) setProjetoId(cat.projeto_padrao_id);
+                }
+              }}>
                 <SelectTrigger className="mt-1.5"><SelectValue placeholder="Sem categoria" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— sem categoria —</SelectItem>

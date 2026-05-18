@@ -284,6 +284,7 @@ nslookup financeiro.brunotropolis.com.br meg.ns.cloudflare.com
 6. `006_add_magalu_origem.sql` — adiciona `magalu_aff` ao enum origem_receita (legacy, agora a tabela `origens_receita` é a fonte de verdade)
 7. `007_origens_receita_tabela.sql` — tabela `origens_receita` (slug/nome/cor/ordem/ativo) populada com valores do enum + Magalu + Bruno adiciona novos pela UI. Coluna `receitas_brutas.origem_id` FK com backfill pelo slug. Trigger updated_at + policies RLS
 8. `008_projetos.sql` — tabela `projetos` (Manual do Recém-Nascido, As Ofertas Maternas, Brunotropolis, Pessoal) + coluna `projeto_id` (nullable, FK) em `transacoes`, `receitas_brutas` e `recorrencias`. Permite calcular margem de lucro por iniciativa comercial (ortogonal a entidade, que é PF/PJ fiscal)
+9. `009_projeto_padrao.sql` — `projeto_padrao_id` em `origens_receita` e `categorias`. Forms auto-sugerem o projeto quando user escolhe origem/categoria. Set inicial: origem Greenn → Manual do Recém-Nascido; categoria Anúncio → Manual do Recém-Nascido
 
 ### Política permanente
 - **SEMPRE disparar deploy manual no EasyPanel após push** — auto-deploy não confiável
