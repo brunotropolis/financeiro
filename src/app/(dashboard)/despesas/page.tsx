@@ -1,4 +1,5 @@
 import { dbServer } from "@/lib/supabase/db";
+import { fetchMetaAdsResumo } from "@/lib/meta-ads";
 import { DespesasTabs } from "@/components/layout/despesas-tabs";
 import { DespesasResumoClient } from "./despesas-resumo-client";
 
@@ -45,6 +46,10 @@ export default async function DespesasResumoPage({
   const range = getRange(periodo, params.inicio, params.fim);
 
   const db = await dbServer();
+
+  // Meta Ads — gasto do mês atual (a API só tem o mês corrente; pra próximos meses
+  // estimamos baseado no mês atual)
+  const metaPromise = fetchMetaAdsResumo("mes");
 
   // 1. Transações de despesa no período
   const { data: txData } = await db
@@ -137,6 +142,22 @@ export default async function DespesasResumoPage({
 
   const totalTransacoes = transacoes.reduce((s, t) => s + Number(t.valor), 0);
 
+  // Meta Ads — gasto do mês atual * nº de meses do período (estimativa pra futuro)
+  const meta = await metaPromise;
+  const metaGastoMes = meta?.gasto_total ?? 0;
+  const metaGastoEstimado = metaGastoMes * range.meses;
+  // Pega cor/nome do projeto do Meta (categoria Anúncio → projeto Manual RN)
+  const { data: catAnuncio } = await db
+    .from("categorias")
+    .select("id, projeto_padrao_id")
+    .eq("nome", "Anúncio")
+    .maybeSingle();
+  const projMetaId = (catAnuncio as { projeto_padrao_id?: string } | null)?.projeto_padrao_id ?? null;
+  const { data: projMetaData } = projMetaId
+    ? await db.from("projetos").select("nome, cor_hex").eq("id", projMetaId).maybeSingle()
+    : { data: null };
+  const projMeta = (projMetaData as { nome: string; cor_hex: string | null } | null) ?? null;
+
   return (
     <div>
       <DespesasTabs />
@@ -149,6 +170,10 @@ export default async function DespesasResumoPage({
         periodo={periodo}
         periodoLabel={range.label}
         numeroMeses={range.meses}
+        metaGastoEstimado={metaGastoEstimado}
+        metaGastoMes={metaGastoMes}
+        projMetaNome={projMeta?.nome ?? null}
+        projMetaCor={projMeta?.cor_hex ?? null}
       />
     </div>
   );

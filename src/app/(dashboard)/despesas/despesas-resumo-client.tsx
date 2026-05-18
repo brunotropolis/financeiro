@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { TrendingDown, Calendar, Wallet, Receipt, Repeat } from "lucide-react";
+import { TrendingDown, Calendar, Wallet, Receipt, Repeat, Megaphone } from "lucide-react";
 import { formatBRL } from "@/lib/formatters";
 
 type LinhaCategoria = {
@@ -31,6 +31,10 @@ export function DespesasResumoClient({
   periodo,
   periodoLabel,
   numeroMeses,
+  metaGastoEstimado,
+  metaGastoMes,
+  projMetaNome,
+  projMetaCor,
 }: {
   porCategoria: LinhaCategoria[];
   totalTransacoes: number;
@@ -40,6 +44,10 @@ export function DespesasResumoClient({
   periodo: string;
   periodoLabel: string;
   numeroMeses: number;
+  metaGastoEstimado: number;
+  metaGastoMes: number;
+  projMetaNome: string | null;
+  projMetaCor: string | null;
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -71,7 +79,7 @@ export function DespesasResumoClient({
     router.push(`/despesas?p=personalizado&inicio=${dataInicio}&fim=${dataFim}`);
   }
 
-  const totalGeral = totalTransacoes + totalRecorrencias;
+  const totalGeral = totalTransacoes + totalRecorrencias + metaGastoEstimado;
   const linhasOrdenadas = useMemo(
     () => [...porCategoria].sort((a, b) => b.total - a.total),
     [porCategoria],
@@ -129,7 +137,7 @@ export function DespesasResumoClient({
       </div>
 
       {/* Cards de resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card
           icon={TrendingDown}
           color="text-rose-400"
@@ -152,6 +160,13 @@ export function DespesasResumoClient({
           value={formatBRL(totalRecorrencias)}
           hint={`${qtdRecorrencias} ativa${qtdRecorrencias === 1 ? "" : "s"}${numeroMeses > 1 ? ` × ${numeroMeses} meses` : ""}`}
           href="/recorrencias"
+        />
+        <Card
+          icon={Megaphone}
+          color="text-purple-400"
+          label="Meta Ads (auto)"
+          value={formatBRL(metaGastoEstimado)}
+          hint={numeroMeses > 1 ? `R$ ${metaGastoMes.toFixed(2).replace(".", ",")}/mês × ${numeroMeses}` : "do dashboard Meta"}
         />
       </div>
 
@@ -179,6 +194,29 @@ export function DespesasResumoClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
+              {/* Linha fixa Meta Ads (auto) — vem da API, soma no total */}
+              {metaGastoEstimado > 0 && (
+                <tr className="bg-purple-950/20 hover:bg-purple-950/30">
+                  <td className="px-5 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Megaphone className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="text-sm font-semibold text-purple-200">Meta Ads</span>
+                      <span className="text-[10px] uppercase tracking-wide bg-purple-900/50 text-purple-200 px-1.5 py-0.5 rounded">auto</span>
+                      {projMetaNome && (
+                        <span className="inline-flex items-center gap-1 ml-1 text-[10px] text-gray-400">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ backgroundColor: projMetaCor ?? "#6b7280" }} />
+                          {projMetaNome}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-5 py-2.5 text-right text-sm font-mono text-gray-700">—</td>
+                  <td className="px-5 py-2.5 text-right text-sm font-mono text-gray-700">—</td>
+                  <td className="px-5 py-2.5 text-right text-sm font-mono font-semibold text-purple-200">
+                    {formatBRL(metaGastoEstimado)}
+                  </td>
+                </tr>
+              )}
               {linhasOrdenadas.map((l) => (
                 <tr key={l.categoria_id ?? "sem"} className="hover:bg-gray-800/30">
                   <td className="px-5 py-2.5">
