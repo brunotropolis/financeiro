@@ -579,7 +579,13 @@ Mesmo padrão em `/recorrencias`. Estado de colapsadas só no client (não persi
 | `src/app/(dashboard)/receitas/greenn-saldo-card.tsx` | Modal de paste de print (`SaldoModal` exportada pra reuso) |
 | `src/app/(dashboard)/origens/{page,actions,origens-client}.tsx` | CRUD de origens |
 | `src/app/(dashboard)/transacoes/periodo-filter.tsx` | Filtro Mês/Próximos/Personalizado/Todos |
+| `src/app/icon.svg` | Favicon emoji 💰 (Next.js detecta automaticamente) |
 | `src/lib/formatters.ts` (adições) | `parseBRL`, `formatBRLEditable`, `maskBRLInput` |
+
+### Ajustes finos no fim da sprint
+
+- **Categorias colapsadas por padrão** em `/transacoes` e `/recorrencias` (invertido state pra `expandidas: Set<string>` que começa vazio). Botão "Expandir tudo / Recolher tudo" troca de label conforme o estado.
+- **Rebrand**: `metadata.title` virou "Gerenciador Financeiro" (sem "Bruno Tropolis"). Sidebar mostra "💰 Gerenciador / Financeiro". Telas de auth mostram "💰 Gerenciador Financeiro". Favicon 💰 via SVG inline (Next.js detecta `src/app/icon.svg`).
 
 ### Pendências da próxima sessão
 
