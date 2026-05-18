@@ -266,8 +266,9 @@ nslookup financeiro.brunotropolis.com.br meg.ns.cloudflare.com
 | `/login` `/esqueci-senha` `/redefinir-senha` | ✅ | Auth flow completo |
 | `/dashboard` | ✅ | Filtro de período (1m/3m/6m) + cards (Saldo atual · Receita · Despesas pago×previsto · Resultado) + card Meta Ads informativo + card Buckets do mês (top 6 críticos). Receita = só `status=recebido` (já em caixa); nota mostra "a receber" |
 | `/receitas` | ✅ | Stats Faturamento/Recebido/A receber + linha fixa Saldo Greenn no topo da tabela + Filtros: critério **Competência/Caixa** + período (Mês atual/Próximos/Personalizado/Todos). Tabela com colunas Competência, Faturamento, Recebido, A receber, Quando cai. Form com campo Competência (month) + máscara monetária BR |
-| `/transacoes` | ✅ | CRUD com parcelamento. Filtros: período (Mês atual/Próximos/Personalizado/Todos) e tipo/entidade. Toggle **Categoria \| Lista**: agrupa por categoria com headers colapsáveis + totais por grupo |
-| `/recorrencias` | ✅ | 3 tipos: **Fixo** (valor exato), **Variável** (estimado, ajusta ao pagar), **Bucket** (teto mensal agregando categoria). Toggle Categoria \| Lista pra agrupar. Semanal/quinzenal/mensal + dia_semana + pode_pular |
+| `/despesas` | ✅ | Resumo somando lançamentos + recorrências por categoria. Filtros período: mês atual / próximo mês / próximos 3 meses / personalizado. Compartilha tabs com /transacoes e /recorrencias |
+| `/transacoes` | ✅ | Sub-rota das tabs Despesas. CRUD com parcelamento. Filtros: período + tipo/entidade. Toggle **Categoria \| Lista** com headers colapsáveis + totais por grupo |
+| `/recorrencias` | ✅ | Sub-rota das tabs Despesas. 3 tipos: **Fixo** (valor exato), **Variável** (estimado, ajusta ao pagar), **Bucket** (teto mensal agregando categoria). Toggle Categoria \| Lista. Semanal/quinzenal/mensal + dia_semana + pode_pular |
 | `/origens` | ✅ | CRUD de origens de receita (Magalu, Amazon, Shopee, ML, Hotmart, etc). Slug gerado do nome. Bruno adiciona via UI sem precisar de migration |
 | `/faturas` | ✅ | Agrupa transações de cartão por mês de fatura |
 | `/importar` | ✅ | Upload PDF → Claude Haiku → revisão → match automático |

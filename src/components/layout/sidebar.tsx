@@ -23,9 +23,8 @@ import {
 
 const navMain = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transacoes", label: "Transações", icon: TrendingDown },
+  { href: "/despesas", label: "Despesas", icon: TrendingDown },
   { href: "/receitas", label: "Receitas", icon: TrendingUp },
-  { href: "/recorrencias", label: "Recorrências", icon: Repeat },
   { href: "/faturas", label: "Faturas", icon: ScrollText },
   { href: "/importar", label: "Importar extrato", icon: Upload },
 ];
@@ -52,7 +51,10 @@ export function Sidebar() {
     label: string;
     icon: typeof LayoutDashboard;
   }) => {
-    const active = pathname.startsWith(href);
+    // "Despesas" também fica ativo quando estiver em /transacoes ou /recorrencias (sub-rotas via tabs)
+    const active = href === "/despesas"
+      ? (pathname === "/despesas" || pathname.startsWith("/transacoes") || pathname.startsWith("/recorrencias"))
+      : pathname.startsWith(href);
     return (
       <Link
         key={href}

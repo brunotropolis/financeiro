@@ -7,6 +7,7 @@ import type {
 } from "@/lib/types/database";
 import { TrendingDown, TrendingUp, Plus, Pencil, Trash2, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronRight, Tag } from "lucide-react";
 import { PeriodoFilter } from "./periodo-filter";
+import { DespesasTabs } from "@/components/layout/despesas-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -128,8 +129,9 @@ export function TransacoesClient({
 
   return (
     <div>
+      <DespesasTabs />
       <PageHeader
-        titulo="Transações"
+        titulo="Lançamentos"
         descricao="Lançamentos pontuais (sem ser recorrência). Suporta parcelamento e vínculo com cartão ou conta."
         acao={
           <div className="flex items-center gap-3">
@@ -141,10 +143,9 @@ export function TransacoesClient({
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Stat label={`Receitas (${periodoLabel})`} value={formatBRL(totais.receitas)} icon={TrendingUp} color="text-emerald-400" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <Stat label={`Despesas (${periodoLabel})`} value={formatBRL(totais.despesas)} icon={TrendingDown} color="text-rose-400" />
-        <Stat label={`Saldo (${periodoLabel})`} value={formatBRL(totais.saldo)} icon={TrendingUp} color={totais.saldo >= 0 ? "text-emerald-400" : "text-rose-400"} />
+        <Stat label={`Total lançamentos`} value={String(filtradas.length)} icon={TrendingUp} color="text-blue-400" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-4">

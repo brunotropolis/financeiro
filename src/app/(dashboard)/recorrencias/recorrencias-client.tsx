@@ -6,6 +6,7 @@ import type {
   FormaPagamento, FrequenciaRecorrencia, ProjetoRow, Recorrencia, TipoTransacao, TipoValorRecorrencia,
 } from "@/lib/types/database";
 import { Repeat, Plus, Pencil, Trash2, TrendingDown, TrendingUp, Wallet, Banknote, PiggyBank, ChevronDown, ChevronRight, Tag } from "lucide-react";
+import { DespesasTabs } from "@/components/layout/despesas-tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,16 +132,10 @@ export function RecorrenciasClient({
         .reduce((s, r) => s + Number(r.valor_padrao), 0),
     [recorrencias]
   );
-  const totalReceitasMensais = useMemo(
-    () =>
-      recorrencias
-        .filter((r) => r.ativo && r.tipo === "receita" && r.frequencia === "mensal")
-        .reduce((s, r) => s + Number(r.valor_padrao), 0),
-    [recorrencias]
-  );
 
   return (
     <div>
+      <DespesasTabs />
       <PageHeader
         titulo="Recorrências"
         descricao="Contas fixas mensais (aluguel, ferramentas, salários). O valor padrão serve de template — você pode ajustar mês a mês sem afetar o histórico."
@@ -152,20 +147,13 @@ export function RecorrenciasClient({
       />
 
       {recorrencias.filter((r) => r.ativo && r.frequencia === "mensal").length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 mb-6">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs uppercase tracking-wide text-gray-400">Despesas fixas/mês</span>
+              <span className="text-xs uppercase tracking-wide text-gray-400">Despesas fixas / mês</span>
               <TrendingDown className="w-4 h-4 text-rose-400" />
             </div>
             <div className="text-2xl font-bold text-white">{formatBRL(totalDespesasMensais)}</div>
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs uppercase tracking-wide text-gray-400">Receitas fixas/mês</span>
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-2xl font-bold text-white">{formatBRL(totalReceitasMensais)}</div>
           </div>
         </div>
       )}
