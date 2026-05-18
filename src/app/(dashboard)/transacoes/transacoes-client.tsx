@@ -56,7 +56,7 @@ export function TransacoesClient({
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoTransacao>("todos");
   const [filtroEntidade, setFiltroEntidade] = useState<string>("todas");
   const [agrupar, setAgrupar] = useState(true);
-  const [colapsadas, setColapsadas] = useState<Set<string>>(new Set());
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set()); // categorias abertas (default = todas fechadas)
 
   // transacoes JÁ vem filtrada por período pelo server. Aqui só filtra por tipo/entidade.
   const filtradas = useMemo(() => {
@@ -99,7 +99,7 @@ export function TransacoesClient({
   }, [filtradas, categorias, agrupar]);
 
   function toggleCat(catKey: string) {
-    setColapsadas((s) => {
+    setExpandidas((s) => {
       const next = new Set(s);
       if (next.has(catKey)) next.delete(catKey);
       else next.add(catKey);
@@ -171,10 +171,10 @@ export function TransacoesClient({
         </div>
         {agrupar && agrupadas && agrupadas.length > 0 && (
           <button
-            onClick={() => setColapsadas(colapsadas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
+            onClick={() => setExpandidas(expandidas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
             className="px-2 py-1.5 text-[11px] rounded-lg text-gray-400 hover:text-white"
           >
-            {colapsadas.size === agrupadas.length ? "Expandir tudo" : "Recolher tudo"}
+            {expandidas.size === agrupadas.length ? "Recolher tudo" : "Expandir tudo"}
           </button>
         )}
         <span className="text-xs text-gray-500 ml-auto">
@@ -206,7 +206,7 @@ export function TransacoesClient({
             <tbody className="divide-y divide-gray-800">
               {agrupar && agrupadas
                 ? agrupadas.map(([key, g]) => {
-                    const colapsado = colapsadas.has(key);
+                    const aberto = expandidas.has(key);
                     const colSpan = 6;
                     return (
                       <Fragment key={key}>
@@ -216,7 +216,7 @@ export function TransacoesClient({
                         >
                           <td colSpan={colSpan} className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              {colapsado ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                              {aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
                               {g.categoria ? (
                                 <>
                                   <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria.cor_hex ?? "#6b7280" }} />
@@ -234,7 +234,7 @@ export function TransacoesClient({
                           </td>
                           <td></td>
                         </tr>
-                        {!colapsado && g.itens.map((t) => (
+                        {aberto && g.itens.map((t) => (
                           <Row
                             key={t.id}
                             tx={t}

@@ -92,7 +92,7 @@ export function RecorrenciasClient({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recorrencia | null>(null);
   const [agrupar, setAgrupar] = useState(true);
-  const [colapsadas, setColapsadas] = useState<Set<string>>(new Set());
+  const [expandidas, setExpandidas] = useState<Set<string>>(new Set()); // default = todas fechadas
 
   // Agrupa recorrências por categoria_id
   const agrupadas = useMemo(() => {
@@ -114,7 +114,7 @@ export function RecorrenciasClient({
   }, [recorrencias, categorias, agrupar]);
 
   function toggleCat(catKey: string) {
-    setColapsadas((s) => {
+    setExpandidas((s) => {
       const next = new Set(s);
       if (next.has(catKey)) next.delete(catKey);
       else next.add(catKey);
@@ -184,10 +184,10 @@ export function RecorrenciasClient({
           </button>
           {agrupar && agrupadas && agrupadas.length > 0 && (
             <button
-              onClick={() => setColapsadas(colapsadas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
+              onClick={() => setExpandidas(expandidas.size === agrupadas.length ? new Set() : new Set(agrupadas.map(([k]) => k)))}
               className="px-2 py-1.5 text-[11px] rounded-lg text-gray-400 hover:text-white"
             >
-              {colapsadas.size === agrupadas.length ? "Expandir tudo" : "Recolher tudo"}
+              {expandidas.size === agrupadas.length ? "Recolher tudo" : "Expandir tudo"}
             </button>
           )}
           <span className="text-xs text-gray-500 ml-auto">
@@ -225,7 +225,7 @@ export function RecorrenciasClient({
             <tbody className="divide-y divide-gray-800">
               {agrupar && agrupadas
                 ? agrupadas.map(([key, g]) => {
-                    const colapsado = colapsadas.has(key);
+                    const aberto = expandidas.has(key);
                     return (
                       <Fragment key={key}>
                         <tr
@@ -234,7 +234,7 @@ export function RecorrenciasClient({
                         >
                           <td colSpan={7} className="px-4 py-2.5">
                             <div className="flex items-center gap-2">
-                              {colapsado ? <ChevronRight className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                              {aberto ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" /> : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
                               {g.categoria ? (
                                 <>
                                   <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: g.categoria.cor_hex ?? "#6b7280" }} />
@@ -250,7 +250,7 @@ export function RecorrenciasClient({
                             </div>
                           </td>
                         </tr>
-                        {!colapsado && g.itens.map((r) => (
+                        {aberto && g.itens.map((r) => (
                           <Row
                             key={r.id}
                             rec={r}
